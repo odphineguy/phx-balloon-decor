@@ -1,0 +1,10 @@
+{
+  "name": "phx-balloon-decor",
+  "version": "1.0.0",
+  "description": "Phoenix Balloon Decor AI visualization",
+  "type": "module",
+  "dependencies": {
+    "@google/generative-ai": "^0.21.0",
+    "formidable": "^3.5.2"
+  }
+}

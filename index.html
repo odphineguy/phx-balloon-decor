@@ -1,0 +1,453 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Phoenix Balloon Decor | Excellence in Every Detail</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400..900;1,400..900&family=Montserrat:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/ScrollTrigger.min.js"></script>
+    <style>
+        :root {
+            --teal: #1A5E63;
+            --gold: #B8860B;
+            --off-white: #F9F9F9;
+            --dark: #333333;
+        }
+
+        body {
+            font-family: 'Montserrat', sans-serif;
+            background-color: var(--off-white);
+            color: var(--dark);
+            scroll-behavior: smooth;
+        }
+
+        h1, h2, h3, .playfair {
+            font-family: 'Playfair Display', serif;
+        }
+
+        .bg-teal { background-color: var(--teal); }
+        .text-teal { color: var(--teal); }
+        .bg-gold { background-color: var(--gold); }
+        .text-gold { color: var(--gold); }
+        .border-gold { border-color: var(--gold); }
+
+        .nav-link {
+            position: relative;
+            transition: color 0.3s ease;
+        }
+        .nav-link::after {
+            content: '';
+            position: absolute;
+            width: 0;
+            height: 1px;
+            bottom: -2px;
+            left: 0;
+            background-color: var(--gold);
+            transition: width 0.3s ease;
+        }
+        .nav-link:hover::after {
+            width: 100%;
+        }
+
+        .btn-primary {
+            background-color: var(--teal);
+            color: white;
+            padding: 0.75rem 2rem;
+            transition: all 0.3s ease;
+            border: 1px solid var(--teal);
+        }
+        .btn-primary:hover {
+            background-color: transparent;
+            color: var(--teal);
+        }
+
+        .btn-outline {
+            border: 1px solid var(--gold);
+            color: var(--gold);
+            padding: 0.75rem 2rem;
+            transition: all 0.3s ease;
+        }
+        .btn-outline:hover {
+            background-color: var(--gold);
+            color: white;
+        }
+
+        .ai-preview-card {
+            box-shadow: 0 20px 50px rgba(0,0,0,0.05);
+            border-radius: 20px;
+            overflow: hidden;
+            background: white;
+        }
+
+        .reveal {
+            opacity: 0;
+            transform: translateY(30px);
+        }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: var(--off-white);
+        }
+        ::-webkit-scrollbar-thumb {
+            background: var(--teal);
+        }
+
+        .image-compare-container {
+            position: relative;
+            width: 100%;
+            height: 400px;
+            overflow: hidden;
+        }
+        .compare-img {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+        .img-overlay {
+            width: 50%;
+        }
+
+        .floating {
+            animation: floating 3s ease-in-out infinite;
+        }
+
+        @keyframes floating {
+            0% { transform: translateY(0px); }
+            50% { transform: translateY(-15px); }
+            100% { transform: translateY(0px); }
+        }
+    </style>
+</head>
+<body class="overflow-x-hidden">
+
+    <!-- Navigation -->
+    <nav class="fixed w-full z-50 transition-all duration-300 py-6" id="navbar">
+        <div class="container mx-auto px-6 flex justify-between items-center">
+            <a href="#"><img src="images/phxballdecor.png" alt="Phoenix Balloon Decor" class="h-16"></a>
+            
+            <div class="hidden md:flex space-x-10 items-center uppercase text-xs tracking-widest font-semibold">
+                <a href="#about" class="nav-link">About</a>
+                <a href="#services" class="nav-link">Services</a>
+                <a href="#ai-preview" class="nav-link">AI Visualization</a>
+                <a href="#contact" class="btn-primary">Book Now</a>
+            </div>
+
+            <button class="md:hidden text-teal" id="menuBtn">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16m-7 6h7" />
+                </svg>
+            </button>
+        </div>
+    </nav>
+
+    <!-- Mobile Menu (Overlay) -->
+    <div id="mobileMenu" class="fixed inset-0 bg-white z-[60] flex flex-col items-center justify-center space-y-8 transform translate-x-full transition-transform duration-500">
+        <button id="closeMenu" class="absolute top-8 right-8 text-teal">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+        </button>
+        <a href="#about" class="text-2xl playfair text-teal">About</a>
+        <a href="#services" class="text-2xl playfair text-teal">Services</a>
+        <a href="#ai-preview" class="text-2xl playfair text-teal">AI Preview</a>
+        <a href="#contact" class="text-2xl playfair text-teal">Contact</a>
+    </div>
+
+    <!-- Hero Section -->
+    <section class="min-h-screen relative flex items-center pt-20">
+        <div class="absolute inset-0 z-0">
+            <div class="absolute inset-0 bg-gradient-to-r from-white via-white/80 to-transparent z-10"></div>
+            <img src="images/wedding.jpeg" class="w-full h-full object-cover" alt="Luxury Balloons">
+        </div>
+
+        <div class="container mx-auto px-6 relative z-20">
+            <div class="max-w-2xl">
+                <span class="text-gold font-semibold tracking-widest uppercase mb-4 block reveal">Artisan Balloon Sculptures</span>
+                <h1 class="text-5xl md:text-7xl lg:text-8xl mb-6 reveal" style="line-height: 1.1;">Excellence in <br><span class="italic text-teal">Every Detail.</span></h1>
+                <p class="text-lg text-gray-600 mb-10 reveal leading-relaxed">From the first consultation to the final installation, we transform your spaces into extraordinary experiences with bespoke balloon artistry.</p>
+                <div class="flex flex-col sm:flex-row space-y-4 sm:space-y-0 sm:space-x-6 reveal">
+                    <a href="#ai-preview" class="btn-primary text-center">See It In Your Space</a>
+                    <a href="#portfolio" class="btn-outline text-center">View Portfolio</a>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Core Value Section -->
+    <section id="about" class="py-24 bg-white">
+        <div class="container mx-auto px-6">
+            <div class="grid md:grid-cols-2 gap-16 items-center">
+                <div class="reveal">
+                    <h2 class="text-4xl md:text-5xl mb-8 leading-tight">Crafting Moments <br>That Last Forever</h2>
+                    <p class="text-gray-600 mb-6 leading-relaxed">At Phoenix Balloon Decor, we believe luxury is in the details. Our design philosophy centers on sophistication, using high-quality biodegradable materials and precision engineering to create breathtaking installations.</p>
+                    <div class="space-y-4">
+                        <div class="flex items-start space-x-4">
+                            <span class="bg-teal/10 p-2 rounded text-teal">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                                </svg>
+                            </span>
+                            <div>
+                                <h4 class="font-bold text-dark uppercase tracking-tight text-sm">Consultation First</h4>
+                                <p class="text-sm text-gray-500">We align with your vision through dedicated discovery sessions.</p>
+                            </div>
+                        </div>
+                        <div class="flex items-start space-x-4">
+                            <span class="bg-teal/10 p-2 rounded text-teal">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                                </svg>
+                            </span>
+                            <div>
+                                <h4 class="font-bold text-dark uppercase tracking-tight text-sm">Precision Setup</h4>
+                                <p class="text-sm text-gray-500">White-glove installation service for every client.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="relative reveal">
+                    <div class="absolute -top-10 -right-10 w-64 h-64 bg-teal/5 rounded-full -z-10"></div>
+                    <img src="images/corp-wall.jpeg" class="rounded-2xl shadow-2xl" alt="Elegant Event">
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- AI Feature Section -->
+    <section id="ai-preview" class="py-24 bg-[#F0F4F4]">
+        <div class="container mx-auto px-6">
+            <div class="text-center max-w-3xl mx-auto mb-12 reveal">
+                <span class="text-gold font-semibold tracking-widest uppercase mb-4 block">The Phoenix Advantage</span>
+                <h2 class="text-4xl md:text-5xl mb-6">AI Visualization</h2>
+                <p class="text-gray-600">Wondering how a grand balloon arch will look in your specific space? Upload a photo and our AI generates a realistic preview of your setup before we even start.</p>
+            </div>
+
+            <!-- Before/After Demo Slider -->
+            <div class="max-w-3xl mx-auto mb-16 reveal">
+                <p class="text-center text-sm text-gray-500 mb-4">Drag to compare: Before & After</p>
+                <div class="ai-preview-card">
+                    <div class="image-compare-container" id="visualizer" style="height: 450px;">
+                        <!-- Before image (background - empty room) -->
+                        <img src="images/before.jpg" class="compare-img" alt="Empty Room">
+                        <!-- After image (overlay - with balloons) -->
+                        <div class="absolute inset-0 overflow-hidden img-overlay" id="overlayImg">
+                            <img src="images/after.JPG" class="compare-img" alt="Room with Balloons">
+                        </div>
+                        <!-- Slider handle -->
+                        <div class="absolute top-0 bottom-0 w-1 bg-gold cursor-ew-resize" id="sliderHandle" style="left: 50%; transform: translateX(-50%);">
+                            <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-10 h-10 bg-gold rounded-full flex items-center justify-center shadow-lg">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 9l4-4 4 4m0 6l-4 4-4-4" />
+                                </svg>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- AI Visualizer App -->
+            <div id="ai-visualizer-app" class="max-w-6xl mx-auto reveal"></div>
+        </div>
+    </section>
+
+    <!-- Portfolio Grid -->
+    <section id="portfolio" class="py-24">
+        <div class="container mx-auto px-6">
+            <div class="flex justify-between items-end mb-16 reveal">
+                <div>
+                    <h2 class="text-4xl md:text-5xl mb-4">Our Recent Works</h2>
+                    <p class="text-gray-500">Curated excellence for every celebration.</p>
+                </div>
+                <div class="hidden md:block">
+                    <a href="#" class="text-teal font-bold border-b-2 border-teal pb-1 hover:text-gold hover:border-gold transition-all">Full Portfolio</a>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+                <div class="group relative overflow-hidden rounded-xl reveal aspect-[4/5]">
+                    <img src="images/branded-wall.png" class="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" alt="Corporate Gala">
+                    <div class="absolute inset-0 bg-gradient-to-t from-teal/90 to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex flex-col justify-end p-8">
+                        <h4 class="text-white text-2xl playfair mb-2">Corporate Galas</h4>
+                        <p class="text-white/80 text-sm">Sophisticated designs for high-profile business events.</p>
+                    </div>
+                </div>
+                <div class="group relative overflow-hidden rounded-xl reveal aspect-[4/5] md:translate-y-12">
+                    <img src="images/wedding-ring.jpeg" class="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" alt="Wedding Installations">
+                    <div class="absolute inset-0 bg-gradient-to-t from-teal/90 to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex flex-col justify-end p-8">
+                        <h4 class="text-white text-2xl playfair mb-2">Grand Weddings</h4>
+                        <p class="text-white/80 text-sm">Ethereal arches and backdrops for your special day.</p>
+                    </div>
+                </div>
+                <div class="group relative overflow-hidden rounded-xl reveal aspect-[4/5]">
+                    <img src="images/birthday-garland.jpeg" class="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" alt="Private Parties">
+                    <div class="absolute inset-0 bg-gradient-to-t from-teal/90 to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex flex-col justify-end p-8">
+                        <h4 class="text-white text-2xl playfair mb-2">Private Soirées</h4>
+                        <p class="text-white/80 text-sm">Personalized touches for intimate home gatherings.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- CTA Section -->
+    <section id="contact" class="py-24 mt-12">
+        <div class="container mx-auto px-6">
+            <div class="bg-teal rounded-3xl p-12 md:p-20 text-center relative overflow-hidden">
+                <div class="absolute top-0 right-0 w-96 h-96 bg-white/5 rounded-full -translate-y-1/2 translate-x-1/2"></div>
+                <div class="absolute bottom-0 left-0 w-64 h-64 bg-white/5 rounded-full translate-y-1/2 -translate-x-1/2"></div>
+                
+                <div class="relative z-10 max-w-2xl mx-auto">
+                    <h2 class="text-4xl md:text-5xl text-white mb-8">Ready to transform your space?</h2>
+                    <p class="text-white/70 text-lg mb-10">Start your journey with a complimentary AI visualization of your next event space.</p>
+                    
+                    <form class="flex flex-col md:flex-row gap-4 max-w-lg mx-auto">
+                        <input type="email" placeholder="Your email address" class="flex-grow px-6 py-4 rounded-full focus:outline-none text-dark">
+                        <button class="bg-gold text-white px-8 py-4 rounded-full font-bold hover:bg-white hover:text-teal transition-all">Get Started</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="bg-white py-16 border-t border-gray-100">
+        <div class="container mx-auto px-6">
+            <div class="grid md:grid-cols-4 gap-12">
+                <div class="col-span-2">
+                    <a href="#" class="mb-6 block"><img src="images/phxballdecor.png" alt="Phoenix Balloon Decor" class="h-16"></a>
+                    <p class="text-gray-500 max-w-sm">Excellence in every detail, from the first consultation to the final installation. High-end balloon artistry for discerning clients.</p>
+                </div>
+                <div>
+                    <h5 class="font-bold uppercase tracking-widest text-xs mb-6 text-gold">Navigation</h5>
+                    <ul class="space-y-4 text-sm text-gray-600">
+                        <li><a href="#" class="hover:text-teal transition-colors">Home</a></li>
+                        <li><a href="#about" class="hover:text-teal transition-colors">About Us</a></li>
+                        <li><a href="#portfolio" class="hover:text-teal transition-colors">Portfolio</a></li>
+                        <li><a href="#ai-preview" class="hover:text-teal transition-colors">AI Visualization</a></li>
+                    </ul>
+                </div>
+                <div>
+                    <h5 class="font-bold uppercase tracking-widest text-xs mb-6 text-gold">Connect</h5>
+                    <ul class="space-y-4 text-sm text-gray-600">
+                        <li><a href="#" class="hover:text-teal transition-colors">Instagram</a></li>
+                        <li><a href="#" class="hover:text-teal transition-colors">Pinterest</a></li>
+                        <li><a href="#" class="hover:text-teal transition-colors">Facebook</a></li>
+                        <li><a href="#" class="hover:text-teal transition-colors">hello@phoenixballoons.com</a></li>
+                    </ul>
+                </div>
+            </div>
+            <div class="mt-16 pt-8 border-t border-gray-100 flex flex-col md:flex-row justify-between text-xs text-gray-400 uppercase tracking-widest">
+                <p>&copy; 2026 Phoenix Balloon Decor. All Rights Reserved.</p>
+                <div class="flex space-x-6 mt-4 md:mt-0">
+                    <a href="#">Privacy Policy</a>
+                    <a href="#">Terms of Service</a>
+                </div>
+            </div>
+        </div>
+    </footer>
+
+    <script>
+        // GSAP Scroll Animations
+        gsap.registerPlugin(ScrollTrigger);
+
+        document.querySelectorAll('.reveal').forEach((el) => {
+            gsap.to(el, {
+                scrollTrigger: {
+                    trigger: el,
+                    start: "top 85%",
+                    toggleActions: "play none none none"
+                },
+                opacity: 1,
+                y: 0,
+                duration: 1.2,
+                ease: "power3.out"
+            });
+        });
+
+        // Navbar Scroll Effect
+        const nav = document.getElementById('navbar');
+        window.addEventListener('scroll', () => {
+            if (window.scrollY > 50) {
+                nav.classList.add('bg-white/90', 'backdrop-blur-md', 'shadow-sm', 'py-4');
+                nav.classList.remove('py-6');
+            } else {
+                nav.classList.remove('bg-white/90', 'backdrop-blur-md', 'shadow-sm', 'py-4');
+                nav.classList.add('py-6');
+            }
+        });
+
+        // Mobile Menu
+        const menuBtn = document.getElementById('menuBtn');
+        const closeMenu = document.getElementById('closeMenu');
+        const mobileMenu = document.getElementById('mobileMenu');
+
+        menuBtn.addEventListener('click', () => {
+            mobileMenu.classList.remove('translate-x-full');
+        });
+
+        closeMenu.addEventListener('click', () => {
+            mobileMenu.classList.add('translate-x-full');
+        });
+
+        mobileMenu.querySelectorAll('a').forEach(link => {
+            link.addEventListener('click', () => {
+                mobileMenu.classList.add('translate-x-full');
+            });
+        });
+
+        // AI Visualization Slider
+        const visualizer = document.getElementById('visualizer');
+        const overlay = document.getElementById('overlayImg');
+        const sliderHandle = document.getElementById('sliderHandle');
+
+        function updateSlider(percentage) {
+            overlay.style.width = percentage + '%';
+            sliderHandle.style.left = percentage + '%';
+        }
+
+        // Mouse events
+        visualizer.addEventListener('mousemove', (e) => {
+            const rect = visualizer.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const percentage = Math.max(0, Math.min(100, (x / rect.width) * 100));
+            updateSlider(percentage);
+        });
+
+        visualizer.addEventListener('mouseleave', () => {
+            gsap.to(overlay, { width: '50%', duration: 0.5 });
+            gsap.to(sliderHandle, { left: '50%', duration: 0.5 });
+        });
+
+        // Touch events for mobile
+        visualizer.addEventListener('touchmove', (e) => {
+            e.preventDefault();
+            const rect = visualizer.getBoundingClientRect();
+            const x = e.touches[0].clientX - rect.left;
+            const percentage = Math.max(0, Math.min(100, (x / rect.width) * 100));
+            updateSlider(percentage);
+        });
+
+        // Floating elements animation for hero (optional extra polish)
+        gsap.to(".btn-primary", {
+            scale: 1.05,
+            duration: 2,
+            repeat: -1,
+            yoyo: true,
+            ease: "sine.inOut"
+        });
+    </script>
+
+    <!-- AI Visualizer Tool -->
+    <script src="js/balloon-visualizer.js"></script>
+</body>
+</html>
