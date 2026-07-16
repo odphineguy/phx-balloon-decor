@@ -4,65 +4,91 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-A single-page marketing site for Phoenix Balloon Decor with an embedded AI tool that takes a
-photo of a venue and renders balloon decorations into it via Google Gemini, returning a styled
-image plus an estimated price quote. The production site is a static `index.html` served by
-Vercel, with image generation handled by a Vercel serverless function.
+Tenant #1 of a multi-tenant SaaS for balloon decor vendors. A single-page marketing site with an
+embedded AI tool: a visitor uploads a venue photo, picks colors + a style, and OpenAI renders
+balloon decorations into the photo. The render is shown blurred behind a lead-capture form
+(name/email/phone/event date); submitting reveals it with a price estimate. Leads persist to
+Supabase and notify the vendor via Resend. The production site is a static `index.html` served by
+Vercel with serverless functions in `api/`.
+
+`BALLOON_SAAS_SPEC.md` is the implemented v1 spec; `DECISIONS.md` records the reality-vs-spec
+divergences (read it before relitigating anything).
 
 ## Commands
 
-There is no build step or test suite for the production site — `index.html` loads Tailwind, GSAP,
-and the visualizer script directly from CDNs / a relative path.
+There is no build step or test suite — `index.html` loads Tailwind, GSAP, and the visualizer
+script from CDNs / relative paths. Syntax gate: `node --check <file>`.
 
-Local development (runs the Express dev server which also serves the static site):
+Local development (Express dev server, also serves the static site):
 
 ```bash
-cd server
-npm install
-npm run dev      # node --watch index.js, serves site + API on http://localhost:3001
-npm start        # same without file watching
+npm install          # repo root — deps for api/ + lib/ (openai, resend, supabase-js, formidable)
+cd server && npm install
+npm run dev          # node --watch index.js, serves site + API on http://localhost:3001
 ```
 
-`GEMINI_API_KEY` must be set in `server/.env` (dev) or the Vercel project env (prod). Copy from
-`.env.example`.
-
-Deployment is Vercel (`vercel.json`); `api/generate.js` is configured with `maxDuration: 60`.
+Env lives in the **root `.env`** (see `.env.example`): `TENANT_ID`, `OPENAI_API_KEY`,
+`SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `RESEND_API_KEY`, optional `OPENAI_IMAGE_MODEL`.
+The dev server loads root `.env` first, then `server/.env` (PORT only). In prod these go in the
+Vercel project env. Deployment is Vercel; pushing to `origin/main` auto-deploys.
 
 ## Architecture
 
-**Two interchangeable backends with identical logic** — keep them in sync when changing
-generation behavior:
-- `api/` — Vercel serverless functions for production (`generate.js`, `prices.js`, `health.js`).
-  `generate.js` parses multipart uploads with **formidable** and disables Vercel's body parser.
-- `server/index.js` — Express dev server (port 3001) that parses uploads with **multer** and also
-  serves the static site from the repo root (`express.static('..')`). Exposes the same
-  `/api/generate`, `/api/prices`, `/api/health` routes.
+**Shared logic in `lib/`, two thin backends.** Both backends import the same modules — change
+behavior in `lib/`, not in the endpoint wrappers:
+- `lib/tenant.js` — loads `tenants/<TENANT_ID>.json` (cached), exposes `publicConfig()` (the
+  browser-safe subset — **strips style prompts and notifyEmail**), `findStyle`, `stylePrices`.
+- `lib/generate-core.js` — validates styleId/colors against the tenant, interpolates `{colors}`
+  into the style prompt **server-side**, calls OpenAI `images.edit` (model `gpt-image-2` by
+  default via `OPENAI_IMAGE_MODEL`), picks the output size closest to the uploaded photo's aspect
+  ratio. `input_fidelity: "high"` is sent ONLY for models that accept it (gpt-image-1/1.5);
+  gpt-image-2 is natively high-fidelity and rejects the param.
+- `lib/leads-core.js` — lead validation, Supabase insert (service role) + Resend notification to
+  the tenant's `contact.notifyEmail`, run independently so one failing never blocks the other.
+  Sends from `studio@abemedia.online` (verified Resend domain).
 
-Both call Gemini model `gemini-2.0-flash-exp` with `responseModalities: ['TEXT', 'IMAGE']`, then
-walk `response.candidates[0].content.parts` to pull out the inline base64 image and any text.
+Backends:
+- `api/` — Vercel functions (`config.js`, `prices.js`, `generate.js`, `leads.js`, `health.js`).
+  `generate.js` parses multipart with **formidable** (body parser disabled). `vercel.json` sets
+  `maxDuration` and `includeFiles: tenants/**` so tenant JSON ships in each function bundle.
+- `server/index.js` — Express dev server (port 3001, **multer**, serves the repo root statically)
+  exposing the same five routes.
 
-**Frontend** — `js/balloon-visualizer.js` is a vanilla-JS IIFE module (no framework, no bundler).
-It builds the entire visualizer UI into the `#ai-visualizer-app` div inside `index.html`, manages
-upload/color/style state, builds the Gemini prompt, and POSTs a `FormData` to `/api/generate`. It
-picks the API base by hostname: `http://localhost:3001` on localhost, same-origin otherwise
-(`balloon-visualizer.js:8`).
+**Tenant config (`tenants/`)** — one JSON per vendor holds ALL branding, theme, fonts, contact,
+ui copy, lead-gate settings, colors, styles, prices, and prompts. `TENANT_ID` env selects it.
+Onboarding a vendor = copy `tenants/_template.json`, fill it, set `TENANT_ID`. Zero code changes.
+**Style prompts are the product: they must never reach the browser.** Only `publicConfig()`
+output is served to clients.
 
-**Data that is duplicated across files** (update all copies together):
-- `STYLE_PRICES` — defined in `api/generate.js`, `api/prices.js`, and `server/index.js`.
-- `BALLOON_STYLES` (the per-style Gemini prompt templates with the `{colors}` placeholder) and
-  `BALLOON_COLORS` — defined only in `js/balloon-visualizer.js`. The frontend fetches prices from
-  `/api/prices` at load and merges them into `BALLOON_STYLES`, so prices have a server source of
-  truth but style prompts/IDs live in the frontend and must match the `STYLE_PRICES` keys.
+**Frontend** — `js/balloon-visualizer.js`, a vanilla-JS IIFE (no framework, no bundler — keep it
+that way). At load it fetches `/api/config`, applies tenant branding to the whole page (CSS vars
+`--teal`/`--gold`/`--off-white`/`--dark`/`--heading-font`/`--body-font`, plus elements marked
+`data-tenant="logo|business-name|contact-email|visualizer-kicker"` in `index.html`), and builds
+the visualizer UI into `#ai-visualizer-app`. Generation POSTs FormData (image, styleId, colors,
+width, height) — no prompt text. The lead gate reveals on submit REGARDLESS of the `/api/leads`
+outcome (ad blockers must not kill the demo moment); the POST happens after the reveal.
+API base is `http://localhost:3001` on localhost, same-origin otherwise.
 
-**`ai-stuff/`** — a separate, standalone React + TypeScript prototype (Vite-style, uses an ES
-module import map and `@google/genai`, calling Gemini directly from the browser). It is **not**
-wired into the production `index.html` and does not share the `api/`/`server/` backends. Treat it
-as a reference/prototype unless explicitly working on it.
+**Supabase** — project `qcgqmomauwpulvotxmls` ("March-Madness Project", shared with unrelated
+tables — do not touch `users`/`brackets`/`tournament_results`). `balloon_leads` table per
+`supabase/migrations/20260716000000_balloon_leads.sql` (applied 2026-07-16): RLS enabled with NO
+policies — service role only, no anon access.
+
+**`ai-stuff/`** — a dead standalone React/TS prototype. Not wired in. Do not touch.
 
 ## Conventions
 
-- Brand theme is defined as CSS variables in `index.html`: `--teal #1A5E63`, `--gold #B8860B`,
-  `--off-white #F9F9F9`, `--dark #333333`, with matching Tailwind utility classes
-  (`bg-teal`, `text-gold`, etc.). Fonts: Playfair Display (headings) + Montserrat (body).
-- Uploads are validated to JPEG/PNG/WebP, max 10MB, in both the frontend and both backends.
-- Color selection is capped at 3.
+- Page structure: hero → AI visualizer section (`#ai-preview`) → about → portfolio → contact.
+  The hero CTA "See It In Your Space" anchors to `#ai-preview`.
+- Uploads validated to JPEG/PNG/WebP, max 10MB, in the frontend and both backends
+  (constants exported from `lib/generate-core.js`). Color selection capped at 3.
+- Default theme: `--teal #1A5E63`, `--gold #B8860B`, `--off-white #F9F9F9`, `--dark #333333`;
+  Playfair Display headings + Montserrat body — but all of it is tenant-config-driven at runtime.
+
+## Gotchas
+
+- The static before/after compare slider (`#visualizer`) reveals its overlay via
+  `clip-path: inset(...)`, not by resizing the overlay div — resizing breaks `object-fit: cover`
+  alignment. Container uses `aspect-ratio: 1/1` + inline `height:auto`.
+- GSAP pulses every `.btn-primary` (scale 1.05 loop), which makes Playwright-style coordinate
+  clicks on those buttons flaky. Dispatch clicks via JS in browser automation.

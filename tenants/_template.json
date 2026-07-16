@@ -1,0 +1,67 @@
+{
+  "_readme": [
+    "Tenant onboarding template. Copy to tenants/<your-tenant-id>.json, fill every",
+    "field, then set TENANT_ID=<your-tenant-id> in the environment (Vercel project",
+    "env in prod, root .env in dev). No code changes are required per tenant.",
+    "Keys prefixed with _ are documentation only and are ignored by lib/tenant.js.",
+    "SECURITY: style prompts are served ONLY server-side. /api/config strips them",
+    "before anything reaches the browser. Never put secrets (API keys) in here."
+  ],
+
+  "_id": "URL-safe unique slug. Must equal the filename (without .json) and the TENANT_ID env value.",
+  "id": "my-balloon-company",
+
+  "_businessName": "Display name used in the page title, footer, emails, and quote PDF.",
+  "businessName": "My Balloon Company",
+
+  "_tagline": "Short brand line shown under the business name in quotes/emails.",
+  "tagline": "Making every event pop",
+
+  "_logo": "Path to the logo image, relative to the site root. Drop the file in images/.",
+  "logo": "/images/my-logo.png",
+
+  "_theme": "Brand palette + Google Fonts family names. primary/accent drive buttons, links, and highlights; bg is the page background; text is the body color.",
+  "theme": {
+    "primary": "#1A5E63",
+    "accent": "#B8860B",
+    "bg": "#F9F9F9",
+    "text": "#333333",
+    "headingFont": "Playfair Display",
+    "bodyFont": "Montserrat"
+  },
+
+  "_contact": "email is shown publicly on the site. notifyEmail receives the lead notification email for every AI visualizer lead (never shown to visitors).",
+  "contact": {
+    "phone": "(555) 555-5555",
+    "email": "hello@example.com",
+    "notifyEmail": "owner@example.com"
+  },
+
+  "_ui": "Tenant-configurable copy. visualizerKicker appears directly above the AI tool.",
+  "ui": {
+    "visualizerKicker": "Try it free — see your venue decorated in 60 seconds."
+  },
+
+  "_leadGate": "When enabled, the generated render stays blurred until the visitor submits the lead form. fields lists which inputs the form shows (name, email, phone are required by the API; eventDate is optional).",
+  "leadGate": {
+    "enabled": true,
+    "fields": ["name", "email", "phone", "eventDate"]
+  },
+
+  "_colors": "Balloon color swatches offered to the visitor (max 3 selectable). name is interpolated into the style prompt; hex only drives the swatch UI.",
+  "colors": [
+    { "name": "Pastel Pink", "hex": "#FFD1DC" },
+    { "name": "Shiny Gold", "hex": "#FFD700" }
+  ],
+
+  "_styles": "One entry per offered style. id must be unique per tenant. price is the display estimate (USD). prompt is the server-side image-edit instruction — {colors} is replaced with the visitor's color names. Prompts never reach the browser.",
+  "styles": [
+    {
+      "id": "classic-garland",
+      "name": "Classic Garland",
+      "description": "Full balloon garland, perfect for entryways and backdrops",
+      "price": 250,
+      "prompt": "Add a beautiful, full balloon garland arch using the colors {colors} to the main area of this image. Make it look realistic and celebratory. Keep the exact framing, camera angle, and every fixed element of the source photo unchanged — only add the balloon decor."
+    }
+  ]
+}

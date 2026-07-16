@@ -1,7 +1,17 @@
 {
   "functions": {
     "api/generate.js": {
-      "maxDuration": 60
+      "maxDuration": 60,
+      "includeFiles": "tenants/**"
+    },
+    "api/config.js": {
+      "includeFiles": "tenants/**"
+    },
+    "api/prices.js": {
+      "includeFiles": "tenants/**"
+    },
+    "api/leads.js": {
+      "includeFiles": "tenants/**"
     }
   }
 }

@@ -16,17 +16,20 @@
             --gold: #B8860B;
             --off-white: #F9F9F9;
             --dark: #333333;
+            /* Tenant-config-driven (overridden from /api/config at load) */
+            --heading-font: 'Playfair Display', serif;
+            --body-font: 'Montserrat', sans-serif;
         }
 
         body {
-            font-family: 'Montserrat', sans-serif;
+            font-family: var(--body-font);
             background-color: var(--off-white);
             color: var(--dark);
             scroll-behavior: smooth;
         }
 
         h1, h2, h3, .playfair {
-            font-family: 'Playfair Display', serif;
+            font-family: var(--heading-font);
         }
 
         .bg-teal { background-color: var(--teal); }
@@ -135,8 +138,8 @@
     <!-- Navigation -->
     <nav class="fixed w-full z-50 transition-all duration-300 py-6" id="navbar">
         <div class="container mx-auto px-6 flex justify-between items-center">
-            <a href="#"><img src="images/phxballdecor.png" alt="Phoenix Balloon Decor" class="h-16"></a>
-            
+            <a href="#"><img src="images/phxballdecor.png" alt="Phoenix Balloon Decor" class="h-16" data-tenant="logo"></a>
+
             <div class="hidden md:flex space-x-10 items-center uppercase text-xs tracking-widest font-semibold">
                 <a href="#about" class="nav-link">About</a>
                 <a href="#services" class="nav-link">Services</a>
@@ -185,6 +188,46 @@
         </div>
     </section>
 
+    <!-- AI Feature Section (first section under the hero — the hero CTA lands here) -->
+    <section id="ai-preview" class="py-24 bg-[#F0F4F4]">
+        <div class="container mx-auto px-6">
+            <div class="text-center max-w-3xl mx-auto mb-12 reveal">
+                <span class="text-gold font-semibold tracking-widest uppercase mb-4 block">The Phoenix Advantage</span>
+                <h2 class="text-4xl md:text-5xl mb-6">AI Visualization</h2>
+                <p class="text-gray-600">Wondering how a grand balloon arch will look in your specific space? Upload a photo and our AI generates a realistic preview of your setup before we even start.</p>
+            </div>
+
+            <!-- Before/After Demo Slider -->
+            <div class="max-w-2xl mx-auto mb-16 reveal">
+                <p class="text-center text-base text-gray-500 mb-4">Drag to compare: Before & After</p>
+                <div class="ai-preview-card">
+                    <div class="image-compare-container" id="visualizer" style="aspect-ratio: 1 / 1; height: auto;">
+                        <!-- After image (background - with balloons) -->
+                        <img src="images/entrance-after.png" class="compare-img" alt="Room with Balloons">
+                        <!-- Before image (overlay - empty room) -->
+                        <div class="absolute inset-0 overflow-hidden img-overlay" id="overlayImg">
+                            <img src="images/entrance-before.png" class="compare-img" alt="Empty Room">
+                        </div>
+                        <!-- Slider handle -->
+                        <div class="absolute top-0 bottom-0 w-1 bg-gold cursor-ew-resize" id="sliderHandle" style="left: 50%; transform: translateX(-50%);">
+                            <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-10 h-10 bg-gold rounded-full flex items-center justify-center shadow-lg">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 9l4-4 4 4m0 6l-4 4-4-4" />
+                                </svg>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Kicker (tenant-configurable: ui.visualizerKicker) -->
+            <p class="text-center text-teal font-semibold mb-6 reveal" data-tenant="visualizer-kicker">Try it free — see your venue decorated in 60 seconds.</p>
+
+            <!-- AI Visualizer App -->
+            <div id="ai-visualizer-app" class="max-w-6xl mx-auto reveal"></div>
+        </div>
+    </section>
+
     <!-- Core Value Section -->
     <section id="about" class="py-24 bg-white">
         <div class="container mx-auto px-6">
@@ -222,43 +265,6 @@
                     <img src="images/corp-wall.jpeg" class="rounded-2xl shadow-2xl" alt="Elegant Event">
                 </div>
             </div>
-        </div>
-    </section>
-
-    <!-- AI Feature Section -->
-    <section id="ai-preview" class="py-24 bg-[#F0F4F4]">
-        <div class="container mx-auto px-6">
-            <div class="text-center max-w-3xl mx-auto mb-12 reveal">
-                <span class="text-gold font-semibold tracking-widest uppercase mb-4 block">The Phoenix Advantage</span>
-                <h2 class="text-4xl md:text-5xl mb-6">AI Visualization</h2>
-                <p class="text-gray-600">Wondering how a grand balloon arch will look in your specific space? Upload a photo and our AI generates a realistic preview of your setup before we even start.</p>
-            </div>
-
-            <!-- Before/After Demo Slider -->
-            <div class="max-w-2xl mx-auto mb-16 reveal">
-                <p class="text-center text-base text-gray-500 mb-4">Drag to compare: Before & After</p>
-                <div class="ai-preview-card">
-                    <div class="image-compare-container" id="visualizer" style="aspect-ratio: 1 / 1; height: auto;">
-                        <!-- After image (background - with balloons) -->
-                        <img src="images/entrance-after.png" class="compare-img" alt="Room with Balloons">
-                        <!-- Before image (overlay - empty room) -->
-                        <div class="absolute inset-0 overflow-hidden img-overlay" id="overlayImg">
-                            <img src="images/entrance-before.png" class="compare-img" alt="Empty Room">
-                        </div>
-                        <!-- Slider handle -->
-                        <div class="absolute top-0 bottom-0 w-1 bg-gold cursor-ew-resize" id="sliderHandle" style="left: 50%; transform: translateX(-50%);">
-                            <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-10 h-10 bg-gold rounded-full flex items-center justify-center shadow-lg">
-                                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 9l4-4 4 4m0 6l-4 4-4-4" />
-                                </svg>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- AI Visualizer App -->
-            <div id="ai-visualizer-app" class="max-w-6xl mx-auto reveal"></div>
         </div>
     </section>
 
@@ -326,7 +332,7 @@
         <div class="container mx-auto px-6">
             <div class="grid md:grid-cols-4 gap-12">
                 <div class="col-span-2">
-                    <a href="#" class="mb-6 block"><img src="images/phxballdecor.png" alt="Phoenix Balloon Decor" class="h-16"></a>
+                    <a href="#" class="mb-6 block"><img src="images/phxballdecor.png" alt="Phoenix Balloon Decor" class="h-16" data-tenant="logo"></a>
                     <p class="text-gray-500 max-w-sm">Excellence in every detail, from the first consultation to the final installation. High-end balloon artistry for discerning clients.</p>
                 </div>
                 <div>
@@ -344,12 +350,12 @@
                         <li><a href="#" class="hover:text-teal transition-colors">Instagram</a></li>
                         <li><a href="#" class="hover:text-teal transition-colors">Pinterest</a></li>
                         <li><a href="#" class="hover:text-teal transition-colors">Facebook</a></li>
-                        <li><a href="#" class="hover:text-teal transition-colors">hello@phoenixballoons.com</a></li>
+                        <li><a href="mailto:hello@phoenixballoons.com" class="hover:text-teal transition-colors" data-tenant="contact-email">hello@phoenixballoons.com</a></li>
                     </ul>
                 </div>
             </div>
             <div class="mt-16 pt-8 border-t border-gray-100 flex flex-col md:flex-row justify-between text-xs text-gray-400 uppercase tracking-widest">
-                <p>&copy; 2026 Phoenix Balloon Decor. All Rights Reserved.</p>
+                <p>&copy; 2026 <span data-tenant="business-name">Phoenix Balloon Decor</span>. All Rights Reserved.</p>
                 <div class="flex space-x-6 mt-4 md:mt-0">
                     <a href="#">Privacy Policy</a>
                     <a href="#">Terms of Service</a>

@@ -1,15 +1,26 @@
 import express from 'express';
 import cors from 'cors';
 import multer from 'multer';
-import { GoogleGenerativeAI } from '@google/generative-ai';
 import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
-dotenv.config();
-
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+
+// Root .env holds the shared secrets (OPENAI/SUPABASE/RESEND/TENANT_ID);
+// server/.env can add dev-only overrides like PORT. Neither overwrites vars
+// already set in the environment.
+dotenv.config({ path: path.join(__dirname, '..', '.env') });
+dotenv.config();
+
+// Imported after dotenv so lib module-load-time env reads (OPENAI_IMAGE_MODEL)
+// see the same values the Vercel runtime would.
+const { getTenant, publicConfig, stylePrices } = await import('../lib/tenant.js');
+const { generateVisualization, ALLOWED_UPLOAD_TYPES, MAX_UPLOAD_BYTES } = await import(
+  '../lib/generate-core.js'
+);
+const { validateLead, deliverLead, isRateLimited } = await import('../lib/leads-core.js');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -17,10 +28,9 @@ const PORT = process.env.PORT || 3001;
 // Configure multer for memory storage
 const upload = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB limit
+  limits: { fileSize: MAX_UPLOAD_BYTES },
   fileFilter: (req, file, cb) => {
-    const allowedTypes = ['image/jpeg', 'image/png', 'image/webp'];
-    if (allowedTypes.includes(file.mimetype)) {
+    if (ALLOWED_UPLOAD_TYPES.includes(file.mimetype)) {
       cb(null, true);
     } else {
       cb(new Error('Invalid file type. Only JPEG, PNG, and WebP are allowed.'));
@@ -35,107 +45,79 @@ app.use(express.json());
 // Serve static files from parent directory (the main site)
 app.use(express.static(path.join(__dirname, '..')));
 
-// Initialize Gemini
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-
-// Balloon style prices
-const STYLE_PRICES = {
-  'classic-garland': { name: 'Classic Garland', price: 250 },
-  'boho-arch': { name: 'Boho Chic Arch', price: 350 },
-  'dynamic-splash': { name: 'Dynamic Splash', price: 200 },
-  'sleek-modern': { name: 'Sleek & Modern', price: 300 },
-  'whimsical-theme': { name: 'Whimsical Theme', price: 275 }
-};
-
 // Health check endpoint
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
-// Get pricing info
+// Public tenant config (styles WITHOUT prompts, colors, theme, branding)
+app.get('/api/config', (req, res) => {
+  try {
+    res.json(publicConfig());
+  } catch (error) {
+    console.error('Config error:', error);
+    res.status(500).json({ error: 'Tenant configuration unavailable' });
+  }
+});
+
+// Get pricing info (legacy shape, now tenant-config-driven)
 app.get('/api/prices', (req, res) => {
-  res.json(STYLE_PRICES);
+  try {
+    res.json(stylePrices());
+  } catch (error) {
+    console.error('Prices error:', error);
+    res.status(500).json({ error: 'Tenant configuration unavailable' });
+  }
 });
 
 // Generate balloon visualization
 app.post('/api/generate', upload.single('image'), async (req, res) => {
   try {
-    if (!process.env.GEMINI_API_KEY) {
-      return res.status(500).json({ error: 'Server configuration error: API key not set' });
-    }
-
     if (!req.file) {
       return res.status(400).json({ error: 'No image file provided' });
     }
 
-    const { prompt, styleId, colors } = req.body;
-
-    if (!prompt) {
-      return res.status(400).json({ error: 'No prompt provided' });
-    }
-
-    // Convert image buffer to base64
-    const imageBase64 = req.file.buffer.toString('base64');
-    const mimeType = req.file.mimetype;
-
-    // Get the model - using gemini-2.0-flash-exp for image generation
-    const model = genAI.getGenerativeModel({
-      model: 'gemini-2.0-flash-exp',
-      generationConfig: {
-        responseModalities: ['TEXT', 'IMAGE']
-      }
+    const result = await generateVisualization({
+      tenant: getTenant(),
+      imageBuffer: req.file.buffer,
+      mimeType: req.file.mimetype,
+      filename: req.file.originalname,
+      styleId: req.body.styleId,
+      colors: req.body.colors,
+      sourceWidth: req.body.width,
+      sourceHeight: req.body.height
     });
-
-    // Create the content with image and prompt
-    const result = await model.generateContent([
-      {
-        inlineData: {
-          mimeType: mimeType,
-          data: imageBase64
-        }
-      },
-      { text: prompt }
-    ]);
-
-    const response = result.response;
-
-    // Extract image and text from response
-    let generatedImage = null;
-    let generatedText = '';
-
-    for (const part of response.candidates?.[0]?.content?.parts || []) {
-      if (part.inlineData) {
-        const { mimeType: imgMime, data } = part.inlineData;
-        generatedImage = `data:${imgMime};base64,${data}`;
-      } else if (part.text) {
-        generatedText += part.text;
-      }
-    }
-
-    if (!generatedImage) {
-      return res.status(422).json({
-        error: 'AI did not generate an image. Try a different photo or style.',
-        details: generatedText
-      });
-    }
-
-    // Get price info if styleId provided
-    const priceInfo = styleId && STYLE_PRICES[styleId] ? STYLE_PRICES[styleId] : null;
 
     res.json({
       success: true,
-      image: generatedImage,
-      text: generatedText,
-      price: priceInfo,
-      colors: colors ? JSON.parse(colors) : []
+      image: result.image,
+      price: result.price,
+      colors: result.colors
     });
-
   } catch (error) {
     console.error('Generation error:', error);
-    res.status(500).json({
-      error: 'Failed to generate visualization',
-      details: error.message
+    const status = error.status || 500;
+    res.status(status).json({
+      error: status === 500 ? 'Failed to generate visualization' : error.message,
+      details: status === 500 ? error.message : undefined
     });
+  }
+});
+
+// Record a lead (Supabase insert + Resend notification)
+app.post('/api/leads', async (req, res) => {
+  if (isRateLimited(req.ip || 'unknown')) {
+    return res.status(429).json({ error: 'Too many requests — try again in a minute.' });
+  }
+  try {
+    const tenant = getTenant();
+    const lead = validateLead(req.body);
+    const outcome = await deliverLead(tenant, lead);
+    res.json(outcome);
+  } catch (error) {
+    const status = error.status || 500;
+    if (status === 500) console.error('Lead error:', error);
+    res.status(status).json({ error: error.message || 'Failed to record lead' });
   }
 });
 
@@ -156,9 +138,11 @@ app.listen(PORT, () => {
   Phoenix Balloon Decor Server
   ========================================
   Server running at: http://localhost:${PORT}
-  API endpoint: http://localhost:${PORT}/api/generate
+  Tenant: ${process.env.TENANT_ID || 'phoenix-balloon-decor'}
 
-  Make sure GEMINI_API_KEY is set in .env
+  Requires OPENAI_API_KEY (and SUPABASE_URL /
+  SUPABASE_SERVICE_ROLE_KEY / RESEND_API_KEY
+  for lead capture) in the root .env
   ========================================
   `);
 });

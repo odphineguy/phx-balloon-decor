@@ -1,6 +1,12 @@
 /**
- * Phoenix Balloon Decor - AI Visualization Tool
- * Connects to backend API for Gemini-powered balloon visualization
+ * AI Visualization Tool — tenant-config-driven.
+ *
+ * Fetches /api/config at load (branding, theme, colors, styles WITHOUT
+ * prompts — prompt templates live server-side only) and renders the whole
+ * visualizer from it. Generation sends styleId + colors; the server builds
+ * the prompt. When the tenant's leadGate is enabled, the generated render is
+ * shown blurred behind a lead form and revealed on submit — regardless of
+ * whether the lead POST succeeds (never lose the demo moment).
  */
 
 const BalloonVisualizer = (() => {
@@ -9,97 +15,106 @@ const BalloonVisualizer = (() => {
     ? 'http://localhost:3001'
     : ''; // Same origin in production
 
-  // Balloon colors
-  const BALLOON_COLORS = [
-    { name: 'Pastel Pink', hex: '#FFD1DC' },
-    { name: 'Light Blue', hex: '#ADD8E6' },
-    { name: 'Mint Green', hex: '#98FF98' },
-    { name: 'Lavender', hex: '#E6E6FA' },
-    { name: 'Butter Yellow', hex: '#FFFACD' },
-    { name: 'Shiny Gold', hex: '#FFD700' },
-    { name: 'Chrome Silver', hex: '#C0C0C0' },
-    { name: 'Rose Gold', hex: '#B76E79' },
-    { name: 'Royal Blue', hex: '#4169E1' },
-    { name: 'Emerald Green', hex: '#50C878' },
-    { name: 'Classic Red', hex: '#FF0000' },
-    { name: 'Matte White', hex: '#F5F5F5' },
-    { name: 'Glossy Black', hex: '#1a1a1a' },
-    { name: 'Terracotta', hex: '#E2725B' },
-    { name: 'Beige', hex: '#F5F5DC' }
-  ];
-
-  // Balloon styles with prompts
-  const BALLOON_STYLES = [
-    {
-      id: 'classic-garland',
-      name: 'Classic Garland',
-      description: 'Full balloon garland, perfect for entryways and backdrops',
-      prompt: 'Add a beautiful, full balloon garland arch using the colors {colors} to the main area of this image. Make it look realistic, celebratory, and elegantly attached to the wall or structure.'
-    },
-    {
-      id: 'boho-arch',
-      name: 'Boho Chic Arch',
-      description: 'Elegant arch with pampas grass accents',
-      prompt: 'Integrate a stylish boho-themed balloon arch into the image using the colors {colors}. Add some dried pampas grass accents within the balloons for a chic, textured look. Ensure it fits the space naturally.'
-    },
-    {
-      id: 'dynamic-splash',
-      name: 'Dynamic Splash',
-      description: 'Energetic explosion of balloons for celebrations',
-      prompt: 'Create a vibrant splash of balloons in the photo using the colors {colors}. The arrangement should be dynamic and asymmetrical, like a joyful explosion of color. Include balloons of various sizes.'
-    },
-    {
-      id: 'sleek-modern',
-      name: 'Sleek & Modern',
-      description: 'Sophisticated arrangement for formal events',
-      prompt: 'Add a sophisticated and elegant balloon arrangement using shades of {colors}. The design should be sleek and modern, perhaps a half-arch or a pillar, suitable for a formal event.'
-    },
-    {
-      id: 'whimsical-theme',
-      name: 'Whimsical Theme',
-      description: 'Creative design with bubble balloons',
-      prompt: 'Transform the space with a whimsical themed balloon decoration using the colors {colors}. Incorporate clear balloons to look like bubbles and maybe some twisted balloons to suggest unique shapes.'
-    }
-  ];
+  const DEFAULT_FONTS = ['Playfair Display', 'Montserrat']; // already linked in index.html
 
   // State
+  let config = null;
   let state = {
     uploadedImage: null,
     uploadedFile: null,
+    uploadedWidth: null,
+    uploadedHeight: null,
     selectedColors: [],
     selectedStyle: null,
     generatedImage: null,
     priceInfo: null,
-    isLoading: false
+    isLoading: false,
+    isRevealed: false
   };
 
   // DOM Elements
   let elements = {};
 
   // Initialize the visualizer
-  function init() {
+  async function init() {
+    config = await fetchConfig();
+    if (!config) {
+      renderConfigError();
+      return;
+    }
+    applyBranding(config);
     createVisualizerUI();
     bindEvents();
-    fetchPrices();
   }
 
-  // Fetch prices from server
-  async function fetchPrices() {
+  // Fetch tenant config from server
+  async function fetchConfig() {
     try {
-      const res = await fetch(`${API_BASE}/api/prices`);
-      if (res.ok) {
-        const prices = await res.json();
-        // Update styles with prices
-        BALLOON_STYLES.forEach(style => {
-          if (prices[style.id]) {
-            style.price = prices[style.id].price;
-          }
-        });
-        renderStyleSelector();
-      }
+      const res = await fetch(`${API_BASE}/api/config`);
+      if (!res.ok) return null;
+      return await res.json();
     } catch (e) {
-      console.log('Could not fetch prices, using defaults');
+      console.error('Could not fetch tenant config', e);
+      return null;
     }
+  }
+
+  function renderConfigError() {
+    const container = document.getElementById('ai-visualizer-app');
+    if (!container) return;
+    container.innerHTML = `
+      <div class="bg-white rounded-2xl p-8 shadow-sm text-center">
+        <p class="text-gray-700 font-medium">The visualizer is taking a quick break.</p>
+        <p class="text-sm text-gray-500 mt-1">Please refresh the page to try again.</p>
+      </div>
+    `;
+  }
+
+  // Apply tenant branding to the whole page (theme vars, fonts, logo, copy)
+  function applyBranding(cfg) {
+    const root = document.documentElement;
+    const theme = cfg.theme || {};
+
+    if (theme.primary) root.style.setProperty('--teal', theme.primary);
+    if (theme.accent) root.style.setProperty('--gold', theme.accent);
+    if (theme.bg) root.style.setProperty('--off-white', theme.bg);
+    if (theme.text) root.style.setProperty('--dark', theme.text);
+    if (theme.headingFont) root.style.setProperty('--heading-font', `'${theme.headingFont}', serif`);
+    if (theme.bodyFont) root.style.setProperty('--body-font', `'${theme.bodyFont}', sans-serif`);
+
+    // Load tenant fonts from Google Fonts when they differ from the defaults
+    // already linked in index.html.
+    const fonts = [theme.headingFont, theme.bodyFont]
+      .filter(f => f && !DEFAULT_FONTS.includes(f));
+    if (fonts.length) {
+      const families = fonts
+        .map(f => `family=${encodeURIComponent(f).replace(/%20/g, '+')}:wght@300;400;500;600;700`)
+        .join('&');
+      const link = document.createElement('link');
+      link.rel = 'stylesheet';
+      link.href = `https://fonts.googleapis.com/css2?${families}&display=swap`;
+      document.head.appendChild(link);
+    }
+
+    if (cfg.businessName) {
+      document.title = `${cfg.businessName}${cfg.tagline ? ' | ' + cfg.tagline : ''}`;
+    }
+    document.querySelectorAll('[data-tenant="logo"]').forEach(el => {
+      if (cfg.logo) el.src = cfg.logo;
+      if (cfg.businessName) el.alt = cfg.businessName;
+    });
+    document.querySelectorAll('[data-tenant="business-name"]').forEach(el => {
+      if (cfg.businessName) el.textContent = cfg.businessName;
+    });
+    document.querySelectorAll('[data-tenant="contact-email"]').forEach(el => {
+      const email = cfg.contact && cfg.contact.email;
+      if (!email) return;
+      el.textContent = email;
+      if (el.tagName === 'A') el.href = `mailto:${email}`;
+    });
+    document.querySelectorAll('[data-tenant="visualizer-kicker"]').forEach(el => {
+      if (cfg.ui && cfg.ui.visualizerKicker) el.textContent = cfg.ui.visualizerKicker;
+    });
   }
 
   // Create the visualizer UI
@@ -183,15 +198,26 @@ const BalloonVisualizer = (() => {
 
           <!-- Result State -->
           <div id="result-state" class="hidden">
-            <div class="relative mb-3">
-              <img id="result-image" class="w-full rounded-xl">
+            <div class="relative mb-3 overflow-hidden rounded-xl">
+              <img id="result-image" class="w-full rounded-xl transition-all duration-700">
               <div class="absolute top-2 right-2 bg-white/90 backdrop-blur px-2 py-1 rounded-full text-xs font-bold tracking-wider text-teal">
                 AI GENERATED
+              </div>
+
+              <!-- Lead Gate Overlay -->
+              <div id="lead-gate" class="hidden absolute inset-0 bg-white/40 backdrop-blur-[2px] flex items-center justify-center p-4">
+                <form id="lead-form" class="bg-white/95 backdrop-blur rounded-xl shadow-lg p-5 w-full max-w-sm">
+                  <p class="font-semibold text-dark text-sm mb-1">Your design is ready!</p>
+                  <p class="text-xs text-gray-500 mb-4">Tell us where to send your free estimate and we'll reveal it instantly.</p>
+                  <div id="lead-fields" class="space-y-2.5"></div>
+                  <p id="lead-error" class="hidden text-xs text-red-500 mt-2">Please fill in your name, email, and phone.</p>
+                  <button type="submit" class="w-full btn-primary py-2.5 rounded-lg font-semibold text-sm mt-4">Reveal My Design</button>
+                </form>
               </div>
             </div>
 
             <!-- Quote Panel - Compact -->
-            <div id="quote-panel" class="p-3 bg-gray-50 rounded-xl">
+            <div id="quote-panel" class="hidden p-3 bg-gray-50 rounded-xl">
               <div class="flex justify-between items-center mb-2">
                 <div>
                   <p class="font-semibold text-dark text-sm" id="quote-style-name">Classic Garland</p>
@@ -200,6 +226,7 @@ const BalloonVisualizer = (() => {
                 <p class="text-xl font-bold text-teal" id="quote-price">$250</p>
               </div>
               <p class="text-xs text-gray-400 mb-2">*Price is an estimate. Final quote may vary based on venue size and complexity.</p>
+              <a href="#contact" id="book-now-btn" class="block w-full btn-primary py-2 rounded-lg text-sm text-center font-semibold mb-2">Book Now</a>
               <div class="flex gap-2">
                 <button id="download-image-btn" class="flex-1 btn-outline py-1.5 rounded-lg text-xs flex items-center justify-center gap-1">
                   <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -250,6 +277,11 @@ const BalloonVisualizer = (() => {
       errorState: document.getElementById('error-state'),
       errorMessage: document.getElementById('error-message'),
       resultImage: document.getElementById('result-image'),
+      leadGate: document.getElementById('lead-gate'),
+      leadForm: document.getElementById('lead-form'),
+      leadFields: document.getElementById('lead-fields'),
+      leadError: document.getElementById('lead-error'),
+      quotePanel: document.getElementById('quote-panel'),
       quoteStyleName: document.getElementById('quote-style-name'),
       quoteColors: document.getElementById('quote-colors'),
       quotePrice: document.getElementById('quote-price'),
@@ -258,14 +290,14 @@ const BalloonVisualizer = (() => {
       retryBtn: document.getElementById('retry-btn')
     };
 
-    // Render color grid
     renderColorGrid();
     renderStyleSelector();
+    renderLeadFields();
   }
 
-  // Render color selection grid
+  // Render color selection grid from tenant config
   function renderColorGrid() {
-    elements.colorGrid.innerHTML = BALLOON_COLORS.map(color => `
+    elements.colorGrid.innerHTML = (config.colors || []).map(color => `
       <button
         class="color-btn w-8 h-8 rounded-full border-2 border-transparent hover:scale-110 transition-transform relative"
         style="background-color: ${color.hex}"
@@ -277,9 +309,9 @@ const BalloonVisualizer = (() => {
     `).join('');
   }
 
-  // Render style selector
+  // Render style selector from tenant config
   function renderStyleSelector() {
-    elements.styleSelector.innerHTML = BALLOON_STYLES.map(style => `
+    elements.styleSelector.innerHTML = (config.styles || []).map(style => `
       <button
         class="style-btn w-full p-2 rounded-lg border border-gray-200 hover:border-teal text-left transition-colors"
         data-style-id="${style.id}">
@@ -289,6 +321,24 @@ const BalloonVisualizer = (() => {
         </div>
       </button>
     `).join('');
+  }
+
+  // Render lead-gate form inputs from tenant config
+  function renderLeadFields() {
+    const FIELDS = {
+      name: { type: 'text', placeholder: 'Your name', autocomplete: 'name', required: true },
+      email: { type: 'email', placeholder: 'Email address', autocomplete: 'email', required: true },
+      phone: { type: 'tel', placeholder: 'Phone number', autocomplete: 'tel', required: true },
+      eventDate: { type: 'date', placeholder: 'Event date', autocomplete: 'off', required: false, label: 'Event date (optional)' }
+    };
+    const wanted = (config.leadGate && config.leadGate.fields) || [];
+    elements.leadFields.innerHTML = wanted.filter(f => FIELDS[f]).map(f => {
+      const def = FIELDS[f];
+      const label = def.label ? `<label class="block text-[11px] text-gray-400 mb-0.5" for="lead-${f}">${def.label}</label>` : '';
+      return `${label}<input id="lead-${f}" name="${f}" type="${def.type}" placeholder="${def.placeholder}"
+        autocomplete="${def.autocomplete}" ${def.required ? 'required' : ''}
+        class="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:border-teal">`;
+    }).join('');
   }
 
   // Bind event handlers
@@ -309,6 +359,9 @@ const BalloonVisualizer = (() => {
 
     // Generate
     elements.generateBtn.addEventListener('click', generateVisualization);
+
+    // Lead gate
+    elements.leadForm.addEventListener('submit', handleLeadSubmit);
 
     // Downloads
     elements.downloadImageBtn.addEventListener('click', downloadImage);
@@ -352,6 +405,14 @@ const BalloonVisualizer = (() => {
 
     state.uploadedFile = file;
     state.uploadedImage = URL.createObjectURL(file);
+    // Capture source dimensions so the server can pick the closest output
+    // aspect ratio for the render.
+    const probe = new Image();
+    probe.onload = () => {
+      state.uploadedWidth = probe.naturalWidth;
+      state.uploadedHeight = probe.naturalHeight;
+    };
+    probe.src = state.uploadedImage;
     elements.previewImage.src = state.uploadedImage;
     elements.uploadArea.classList.add('hidden');
     elements.uploadPreview.classList.remove('hidden');
@@ -364,6 +425,8 @@ const BalloonVisualizer = (() => {
     }
     state.uploadedFile = null;
     state.uploadedImage = null;
+    state.uploadedWidth = null;
+    state.uploadedHeight = null;
     elements.fileInput.value = '';
     elements.uploadArea.classList.remove('hidden');
     elements.uploadPreview.classList.add('hidden');
@@ -411,7 +474,7 @@ const BalloonVisualizer = (() => {
     btn.classList.remove('border-gray-200');
     btn.classList.add('border-teal', 'bg-teal/5');
 
-    state.selectedStyle = BALLOON_STYLES.find(s => s.id === btn.dataset.styleId);
+    state.selectedStyle = (config.styles || []).find(s => s.id === btn.dataset.styleId);
     updateGenerateButton();
   }
 
@@ -465,28 +528,14 @@ const BalloonVisualizer = (() => {
     }, 2000);
 
     try {
-      // Build color string
-      const colorNames = state.selectedColors.map(c => c.name);
-      let colorString;
-      if (colorNames.length === 1) {
-        colorString = colorNames[0];
-      } else if (colorNames.length === 2) {
-        colorString = `${colorNames[0]} and ${colorNames[1]}`;
-      } else {
-        colorString = `${colorNames[0]}, ${colorNames[1]}, and ${colorNames[2]}`;
-      }
-
-      // Build prompt
-      const prompt = state.selectedStyle.prompt.replace('{colors}', colorString);
-
-      // Create form data
+      // The server owns the prompt — send only the selections.
       const formData = new FormData();
       formData.append('image', state.uploadedFile);
-      formData.append('prompt', prompt);
       formData.append('styleId', state.selectedStyle.id);
       formData.append('colors', JSON.stringify(state.selectedColors));
+      if (state.uploadedWidth) formData.append('width', state.uploadedWidth);
+      if (state.uploadedHeight) formData.append('height', state.uploadedHeight);
 
-      // Send request
       const response = await fetch(`${API_BASE}/api/generate`, {
         method: 'POST',
         body: formData
@@ -502,11 +551,17 @@ const BalloonVisualizer = (() => {
       state.generatedImage = data.image;
       state.priceInfo = data.price;
 
+      const colorNames = state.selectedColors.map(c => c.name);
       elements.resultImage.src = data.image;
       elements.quoteStyleName.textContent = state.selectedStyle.name;
       elements.quoteColors.textContent = `Colors: ${colorNames.join(', ')}`;
       elements.quotePrice.textContent = state.priceInfo ? `$${state.priceInfo.price}` : 'Quote on request';
 
+      if (config.leadGate && config.leadGate.enabled && !state.isRevealed) {
+        lockResult();
+      } else {
+        revealResult();
+      }
       showState('result');
 
     } catch (error) {
@@ -520,13 +575,65 @@ const BalloonVisualizer = (() => {
     }
   }
 
+  // Lead gate: blur the render behind the form
+  function lockResult() {
+    elements.resultImage.classList.add('blur-lg', 'scale-105');
+    elements.leadGate.classList.remove('hidden');
+    elements.quotePanel.classList.add('hidden');
+  }
+
+  function revealResult() {
+    elements.resultImage.classList.remove('blur-lg', 'scale-105');
+    elements.leadGate.classList.add('hidden');
+    elements.quotePanel.classList.remove('hidden');
+  }
+
+  async function handleLeadSubmit(e) {
+    e.preventDefault();
+
+    const value = (f) => {
+      const input = document.getElementById(`lead-${f}`);
+      return input ? input.value.trim() : '';
+    };
+    const lead = {
+      name: value('name'),
+      email: value('email'),
+      phone: value('phone'),
+      eventDate: value('eventDate') || null,
+      styleId: state.selectedStyle ? state.selectedStyle.id : null,
+      colors: state.selectedColors,
+      renderIncluded: Boolean(state.generatedImage)
+    };
+
+    if (!lead.name || !lead.email || !lead.phone) {
+      elements.leadError.classList.remove('hidden');
+      return;
+    }
+    elements.leadError.classList.add('hidden');
+
+    // Reveal FIRST — the customer's moment never depends on the lead call
+    // surviving ad blockers or network hiccups.
+    state.isRevealed = true;
+    revealResult();
+
+    try {
+      await fetch(`${API_BASE}/api/leads`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(lead)
+      });
+    } catch (error) {
+      console.error('Lead submit failed (render already revealed):', error);
+    }
+  }
+
   // Download image
   function downloadImage() {
     if (!state.generatedImage) return;
 
     const link = document.createElement('a');
     link.href = state.generatedImage;
-    link.download = `phoenix-balloon-visualization-${Date.now()}.png`;
+    link.download = `${config.id || 'balloon'}-visualization-${Date.now()}.png`;
     link.click();
   }
 
@@ -538,24 +645,26 @@ const BalloonVisualizer = (() => {
     // In production, you might use a library like jsPDF
     const colorNames = state.selectedColors.map(c => c.name).join(', ');
     const price = state.priceInfo ? `$${state.priceInfo.price}` : 'Quote on request';
+    const theme = config.theme || {};
+    const primary = theme.primary || '#1A5E63';
 
     const quoteHTML = `
       <!DOCTYPE html>
       <html>
       <head>
-        <title>Phoenix Balloon Decor - Quote</title>
+        <title>${config.businessName} - Quote</title>
         <style>
-          body { font-family: 'Segoe UI', Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 40px; color: #333; }
-          .header { text-align: center; margin-bottom: 40px; border-bottom: 2px solid #1A5E63; padding-bottom: 20px; }
-          .header h1 { color: #1A5E63; margin: 0; font-size: 28px; }
+          body { font-family: 'Segoe UI', Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 40px; color: ${theme.text || '#333'}; }
+          .header { text-align: center; margin-bottom: 40px; border-bottom: 2px solid ${primary}; padding-bottom: 20px; }
+          .header h1 { color: ${primary}; margin: 0; font-size: 28px; }
           .header p { color: #666; margin-top: 5px; }
           .image-container { text-align: center; margin: 30px 0; }
           .image-container img { max-width: 100%; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.1); }
           .details { background: #f9f9f9; padding: 24px; border-radius: 12px; margin: 30px 0; }
-          .details h2 { color: #1A5E63; margin-top: 0; }
+          .details h2 { color: ${primary}; margin-top: 0; }
           .detail-row { display: flex; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid #eee; }
           .detail-row:last-child { border-bottom: none; }
-          .price { font-size: 32px; color: #1A5E63; font-weight: bold; text-align: right; }
+          .price { font-size: 32px; color: ${primary}; font-weight: bold; text-align: right; }
           .footer { text-align: center; margin-top: 40px; padding-top: 20px; border-top: 1px solid #eee; color: #666; font-size: 14px; }
           .disclaimer { font-size: 12px; color: #999; margin-top: 20px; }
           @media print { body { padding: 20px; } }
@@ -563,8 +672,8 @@ const BalloonVisualizer = (() => {
       </head>
       <body>
         <div class="header">
-          <h1>Phoenix Balloon Decor</h1>
-          <p>Excellence in Every Detail</p>
+          <h1>${config.businessName}</h1>
+          <p>${config.tagline || ''}</p>
         </div>
 
         <div class="image-container">
@@ -590,8 +699,8 @@ const BalloonVisualizer = (() => {
         <p class="disclaimer">*This is an AI-generated visualization. Final installation may vary. Price is an estimate and may change based on venue size, complexity, and specific requirements. Contact us for a detailed quote.</p>
 
         <div class="footer">
-          <p><strong>Phoenix Balloon Decor</strong></p>
-          <p>hello@phoenixballoons.com</p>
+          <p><strong>${config.businessName}</strong></p>
+          <p>${(config.contact && config.contact.email) || ''}</p>
           <p>Quote generated on ${new Date().toLocaleDateString()}</p>
         </div>
       </body>

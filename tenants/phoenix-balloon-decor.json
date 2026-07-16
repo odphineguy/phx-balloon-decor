@@ -1,0 +1,80 @@
+{
+  "id": "phoenix-balloon-decor",
+  "businessName": "Phoenix Balloon Decor",
+  "tagline": "Excellence in Every Detail",
+  "logo": "/images/phxballdecor.png",
+  "theme": {
+    "primary": "#1A5E63",
+    "accent": "#B8860B",
+    "bg": "#F9F9F9",
+    "text": "#333333",
+    "headingFont": "Playfair Display",
+    "bodyFont": "Montserrat"
+  },
+  "contact": {
+    "phone": "",
+    "email": "hello@phoenixballoons.com",
+    "notifyEmail": "odphineguy@gmail.com"
+  },
+  "ui": {
+    "visualizerKicker": "Try it free — see your venue decorated in 60 seconds."
+  },
+  "leadGate": {
+    "enabled": true,
+    "fields": ["name", "email", "phone", "eventDate"]
+  },
+  "colors": [
+    { "name": "Pastel Pink", "hex": "#FFD1DC" },
+    { "name": "Light Blue", "hex": "#ADD8E6" },
+    { "name": "Mint Green", "hex": "#98FF98" },
+    { "name": "Lavender", "hex": "#E6E6FA" },
+    { "name": "Butter Yellow", "hex": "#FFFACD" },
+    { "name": "Shiny Gold", "hex": "#FFD700" },
+    { "name": "Chrome Silver", "hex": "#C0C0C0" },
+    { "name": "Rose Gold", "hex": "#B76E79" },
+    { "name": "Royal Blue", "hex": "#4169E1" },
+    { "name": "Emerald Green", "hex": "#50C878" },
+    { "name": "Classic Red", "hex": "#FF0000" },
+    { "name": "Matte White", "hex": "#F5F5F5" },
+    { "name": "Glossy Black", "hex": "#1a1a1a" },
+    { "name": "Terracotta", "hex": "#E2725B" },
+    { "name": "Beige", "hex": "#F5F5DC" }
+  ],
+  "styles": [
+    {
+      "id": "classic-garland",
+      "name": "Classic Garland",
+      "description": "Full balloon garland, perfect for entryways and backdrops",
+      "price": 250,
+      "prompt": "Add a beautiful, full balloon garland arch using the colors {colors} to the main area of this image. Make it look realistic, celebratory, and elegantly attached to the wall or structure. Keep the exact framing, camera angle, and every fixed element of the source photo unchanged — only add the balloon decor."
+    },
+    {
+      "id": "boho-arch",
+      "name": "Boho Chic Arch",
+      "description": "Elegant arch with pampas grass accents",
+      "price": 350,
+      "prompt": "Integrate a stylish boho-themed balloon arch into the image using the colors {colors}. Add some dried pampas grass accents within the balloons for a chic, textured look. Ensure it fits the space naturally. Keep the exact framing, camera angle, and every fixed element of the source photo unchanged — only add the balloon decor."
+    },
+    {
+      "id": "dynamic-splash",
+      "name": "Dynamic Splash",
+      "description": "Energetic explosion of balloons for celebrations",
+      "price": 200,
+      "prompt": "Create a vibrant splash of balloons in the photo using the colors {colors}. The arrangement should be dynamic and asymmetrical, like a joyful explosion of color. Include balloons of various sizes. Keep the exact framing, camera angle, and every fixed element of the source photo unchanged — only add the balloon decor."
+    },
+    {
+      "id": "sleek-modern",
+      "name": "Sleek & Modern",
+      "description": "Sophisticated arrangement for formal events",
+      "price": 300,
+      "prompt": "Add a sophisticated and elegant balloon arrangement using shades of {colors}. The design should be sleek and modern, perhaps a half-arch or a pillar, suitable for a formal event. Keep the exact framing, camera angle, and every fixed element of the source photo unchanged — only add the balloon decor."
+    },
+    {
+      "id": "whimsical-theme",
+      "name": "Whimsical Theme",
+      "description": "Creative design with bubble balloons",
+      "price": 275,
+      "prompt": "Transform the space with a whimsical themed balloon decoration using the colors {colors}. Incorporate clear balloons to look like bubbles and maybe some twisted balloons to suggest unique shapes. Keep the exact framing, camera angle, and every fixed element of the source photo unchanged — only add the balloon decor."
+    }
+  ]
+}
