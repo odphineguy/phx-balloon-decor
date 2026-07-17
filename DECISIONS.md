@@ -49,6 +49,27 @@ Security note: `server/.env.example` had a real-looking Gemini API key committed
 git history — replaced with a placeholder; the key should be revoked in Google AI
 Studio. Gemini is no longer used anywhere.
 
-Open risks: Vercel-side behavior (includeFiles bundling of `tenants/`, function
-maxDuration) is untested until the next deploy; prod Vercel env still needs
-OPENAI_API_KEY / SUPABASE_* / RESEND_API_KEY / TENANT_ID set before pushing.
+## 2026-07-16 — Production deploy + the 60-second render ceiling (OPEN)
+
+Deployed to Vercel (commits 23e9350, f05a8fa). Verified live: homepage,
+/api/health, /api/config (tenant bundling via includeFiles works, zero prompt
+text), /api/prices, /api/leads validation, and a complete gpt-image-2 render
+(HTTP 200 in 56s).
+
+**OPEN ISSUE — renders longer than 60s die in production.** gpt-image-2 at
+quality "medium" takes 56–115s (measured). Vercel severs the connection at
+exactly ~60.5s with no HTTP status (not a 504). Facts established:
+- `maxDuration: 300` IS in the deployed function config (verified via API);
+  project has `fluid: true`, plan hobby — docs say 300s should be allowed.
+- Not the local network: same machine held a 114s idle HTTPS connection to
+  OpenAI (dev server test); TCP keepalives don't prevent the Vercel cut;
+  reproduced on HTTP/1.1 and HTTP/2.
+- Next diagnostic step (needs Abe): check Vercel dashboard → project →
+  Settings → Functions for a "Fluid Compute" toggle / "Function Max Duration"
+  default that may be clamping to 60s; else Vercel support / Pro plan.
+- Mitigation options if the cap is real: Pro plan (800s), quality "low"
+  (faster but still variance across 60s), or move the render endpoint to a
+  longer-lived runtime.
+
+Remaining env note: prod Vercel env vars were set by Abe (confirmed working —
+renders, Supabase, config all live).
