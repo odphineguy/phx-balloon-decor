@@ -3,9 +3,11 @@ import fs from 'fs';
 import { getTenant } from '../lib/tenant.js';
 import {
   generateVisualization,
+  validateGenerateRequest,
   ALLOWED_UPLOAD_TYPES,
   MAX_UPLOAD_BYTES
 } from '../lib/generate-core.js';
+import { startHeartbeat } from '../lib/heartbeat.js';
 
 export const config = {
   api: {
@@ -45,23 +47,39 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: 'Invalid file type. Only JPEG, PNG, and WebP are allowed.' });
     }
 
-    const result = await generateVisualization({
-      tenant: getTenant(),
-      imageBuffer: fs.readFileSync(file.filepath),
-      mimeType: file.mimetype,
-      filename: file.originalFilename,
-      styleId: fields.styleId?.[0],
-      colors: fields.colors?.[0],
-      sourceWidth: fields.width?.[0],
-      sourceHeight: fields.height?.[0]
-    });
+    const tenant = getTenant();
+    const styleId = fields.styleId?.[0];
+    const colors = fields.colors?.[0];
 
-    return res.status(200).json({
-      success: true,
-      image: result.image,
-      price: result.price,
-      colors: result.colors
-    });
+    // Fast validation gets real status codes; only after it passes do we
+    // commit to the streamed 200 (see lib/heartbeat.js for why).
+    if (!process.env.OPENAI_API_KEY) {
+      return res.status(500).json({ error: 'Server configuration error: API key not set' });
+    }
+    validateGenerateRequest(tenant, { styleId, colors });
+
+    const heartbeat = startHeartbeat(res);
+    try {
+      const result = await generateVisualization({
+        tenant,
+        imageBuffer: fs.readFileSync(file.filepath),
+        mimeType: file.mimetype,
+        filename: file.originalFilename,
+        styleId,
+        colors,
+        sourceWidth: fields.width?.[0],
+        sourceHeight: fields.height?.[0]
+      });
+      heartbeat.succeed({
+        image: result.image,
+        price: result.price,
+        colors: result.colors
+      });
+    } catch (error) {
+      console.error('Generation error:', error);
+      heartbeat.fail(error.status ? error.message : 'Failed to generate visualization');
+    }
+    return;
 
   } catch (error) {
     console.error('Generation error:', error);

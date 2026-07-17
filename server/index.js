@@ -17,10 +17,10 @@ dotenv.config();
 // Imported after dotenv so lib module-load-time env reads (OPENAI_IMAGE_MODEL)
 // see the same values the Vercel runtime would.
 const { getTenant, publicConfig, stylePrices } = await import('../lib/tenant.js');
-const { generateVisualization, ALLOWED_UPLOAD_TYPES, MAX_UPLOAD_BYTES } = await import(
-  '../lib/generate-core.js'
-);
+const { generateVisualization, validateGenerateRequest, ALLOWED_UPLOAD_TYPES, MAX_UPLOAD_BYTES } =
+  await import('../lib/generate-core.js');
 const { validateLead, deliverLead, isRateLimited } = await import('../lib/leads-core.js');
+const { startHeartbeat } = await import('../lib/heartbeat.js');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -77,23 +77,36 @@ app.post('/api/generate', upload.single('image'), async (req, res) => {
       return res.status(400).json({ error: 'No image file provided' });
     }
 
-    const result = await generateVisualization({
-      tenant: getTenant(),
-      imageBuffer: req.file.buffer,
-      mimeType: req.file.mimetype,
-      filename: req.file.originalname,
-      styleId: req.body.styleId,
-      colors: req.body.colors,
-      sourceWidth: req.body.width,
-      sourceHeight: req.body.height
-    });
+    const tenant = getTenant();
 
-    res.json({
-      success: true,
-      image: result.image,
-      price: result.price,
-      colors: result.colors
-    });
+    // Fast validation gets real status codes; only after it passes do we
+    // commit to the streamed 200 (see lib/heartbeat.js for why).
+    if (!process.env.OPENAI_API_KEY) {
+      return res.status(500).json({ error: 'Server configuration error: API key not set' });
+    }
+    validateGenerateRequest(tenant, { styleId: req.body.styleId, colors: req.body.colors });
+
+    const heartbeat = startHeartbeat(res);
+    try {
+      const result = await generateVisualization({
+        tenant,
+        imageBuffer: req.file.buffer,
+        mimeType: req.file.mimetype,
+        filename: req.file.originalname,
+        styleId: req.body.styleId,
+        colors: req.body.colors,
+        sourceWidth: req.body.width,
+        sourceHeight: req.body.height
+      });
+      heartbeat.succeed({
+        image: result.image,
+        price: result.price,
+        colors: result.colors
+      });
+    } catch (error) {
+      console.error('Generation error:', error);
+      heartbeat.fail(error.status ? error.message : 'Failed to generate visualization');
+    }
   } catch (error) {
     console.error('Generation error:', error);
     const status = error.status || 500;
