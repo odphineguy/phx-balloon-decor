@@ -47,6 +47,12 @@ behavior in `lib/`, not in the endpoint wrappers:
   the tenant's `contact.notifyEmail`, run independently so one failing never blocks the other.
   Sends from `studio@abemedia.online` (verified Resend domain).
 
+- `lib/heartbeat.js` — renders take 56–115s with no response bytes, and idle connections get
+  severed at ~60s by network intermediaries. `/api/generate` therefore validates fast (real
+  status codes), then commits to a **streamed 200** that writes a whitespace byte every 5s until
+  the JSON is ready. Post-validation failures are `200 + {success:false,error}`. Keep this
+  pattern for any future slow endpoint.
+
 Backends:
 - `api/` — Vercel functions (`config.js`, `prices.js`, `generate.js`, `leads.js`, `health.js`).
   `generate.js` parses multipart with **formidable** (body parser disabled). `vercel.json` sets
@@ -92,3 +98,7 @@ policies — service role only, no anon access.
   alignment. Container uses `aspect-ratio: 1/1` + inline `height:auto`.
 - GSAP pulses every `.btn-primary` (scale 1.05 loop), which makes Playwright-style coordinate
   clicks on those buttons flaky. Dispatch clicks via JS in browser automation.
+- The dev machine's network severs idle TLS connections at ~60s. Consequences: dev-server
+  renders can lose the node→OpenAI leg and silently retry (the OpenAI SDK's maxRetries=2 makes
+  them take ~2× longer), and any long no-byte HTTP response tested from this machine dies at
+  ~60s — that's the client-side network, not the server. See DECISIONS.md 2026-07-16.

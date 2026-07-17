@@ -49,27 +49,35 @@ Security note: `server/.env.example` had a real-looking Gemini API key committed
 git history — replaced with a placeholder; the key should be revoked in Google AI
 Studio. Gemini is no longer used anywhere.
 
-## 2026-07-16 — Production deploy + the 60-second render ceiling (OPEN)
+## 2026-07-16 — Production deploy + the 60-second render kill (RESOLVED)
 
-Deployed to Vercel (commits 23e9350, f05a8fa). Verified live: homepage,
-/api/health, /api/config (tenant bundling via includeFiles works, zero prompt
-text), /api/prices, /api/leads validation, and a complete gpt-image-2 render
-(HTTP 200 in 56s).
+Deployed to Vercel (23e9350 … 9778266). Verified live: homepage, /api/health,
+/api/config (tenant bundling via includeFiles works, zero prompt text),
+/api/prices, /api/leads validation, and complete gpt-image-2 renders.
 
-**OPEN ISSUE — renders longer than 60s die in production.** gpt-image-2 at
-quality "medium" takes 56–115s (measured). Vercel severs the connection at
-exactly ~60.5s with no HTTP status (not a 504). Facts established:
-- `maxDuration: 300` IS in the deployed function config (verified via API);
-  project has `fluid: true`, plan hobby — docs say 300s should be allowed.
-- Not the local network: same machine held a 114s idle HTTPS connection to
-  OpenAI (dev server test); TCP keepalives don't prevent the Vercel cut;
-  reproduced on HTTP/1.1 and HTTP/2.
-- Next diagnostic step (needs Abe): check Vercel dashboard → project →
-  Settings → Functions for a "Fluid Compute" toggle / "Function Max Duration"
-  default that may be clamping to 60s; else Vercel support / Pro plan.
-- Mitigation options if the cap is real: Pro plan (800s), quality "low"
-  (faster but still variance across 60s), or move the render endpoint to a
-  longer-lived runtime.
+**Symptom:** renders longer than ~60s had their connection severed at ~60.5s
+with no HTTP status. gpt-image-2 at quality "medium" takes 56–115s.
 
-Remaining env note: prod Vercel env vars were set by Abe (confirmed working —
-renders, Supabase, config all live).
+**Root cause:** connections carrying ZERO bytes for ~60s get severed by
+network intermediaries. Both legs were affected when testing from Abe's
+Mac: curl→Vercel (idle while the function rendered) AND, in dev,
+node→api.openai.com (the OpenAI SDK's silent retries masked this — a "114s
+dev success" was really a 60s idle kill + a 54s successful retry; a later
+dev run burned 3 × 60s attempts and failed with UND_ERR_SOCKET "other side
+closed"). An earlier entry here wrongly cleared the local network based on
+that masked success. Vercel's config was never the problem — maxDuration 300,
+fluid, and the dashboard default were all correct.
+
+**Fix (9778266): heartbeat streaming — `lib/heartbeat.js`.** /api/generate
+validates fast with real status codes, then commits to a streamed 200 that
+writes a whitespace byte every 5s until the JSON payload is ready (leading
+whitespace is valid JSON; the frontend's response.json() is unaffected).
+Post-validation failures arrive as 200 + {success:false,error}, which the
+frontend already branches on. This is also Vercel's documented recommendation
+for long no-byte responses. Verified: prod render HTTP 200 in 83.6s.
+
+Residual (local dev only): renders from this Mac's network can still lose the
+node→OpenAI leg at ~60s and silently retry (SDK maxRetries=2), so dev renders
+sometimes take ~2× longer. Datacenter-side (Vercel→OpenAI) is unaffected.
+
+Prod env vars were set by Abe (renders, Supabase, config all confirmed live).
