@@ -29,7 +29,8 @@ const BalloonVisualizer = (() => {
     generatedImage: null,
     priceInfo: null,
     isLoading: false,
-    isRevealed: false
+    isRevealed: false,
+    focusMode: false
   };
 
   // DOM Elements
@@ -68,6 +69,153 @@ const BalloonVisualizer = (() => {
         <p class="text-sm text-gray-500 mt-1">Please refresh the page to try again.</p>
       </div>
     `;
+  }
+
+  // Inject the visualizer's own CSS (balloon loader, reduced-motion fallbacks)
+  // so the component stays self-contained on any tenant page.
+  function ensureVisualizerStyles() {
+    if (document.getElementById('bv-styles')) return;
+    const style = document.createElement('style');
+    style.id = 'bv-styles';
+    style.textContent = `
+      .bv-balloon {
+        position: absolute;
+        top: 100%;
+        border-radius: 50% 50% 48% 52% / 58% 58% 42% 42%;
+        background: radial-gradient(circle at 32% 26%, rgba(255,255,255,0.85), rgba(255,255,255,0) 42%), var(--bv-color, #ccc);
+        animation: bv-rise linear infinite;
+        will-change: transform;
+        opacity: 0.9;
+      }
+      .bv-balloon::after {
+        content: '';
+        position: absolute;
+        top: 99%;
+        left: 50%;
+        width: 1px;
+        height: 40%;
+        background: rgba(0,0,0,0.18);
+        transform: translateX(-50%);
+      }
+      @keyframes bv-rise {
+        from { transform: translateY(0); }
+        to { transform: translateY(-120vh); }
+      }
+      .bv-fade { transition: opacity 0.45s ease; }
+      @media (prefers-reduced-motion: reduce) {
+        .bv-balloon {
+          top: var(--bv-top, 50%);
+          animation: bv-breathe 5s ease-in-out infinite;
+        }
+        @keyframes bv-breathe {
+          0%, 100% { opacity: 0.45; }
+          50% { opacity: 0.85; }
+        }
+      }
+    `;
+    document.head.appendChild(style);
+  }
+
+  // WCAG relative luminance of a #rrggbb / #rgb color (0 = black, 1 = white).
+  function relLuminance(hex) {
+    const raw = String(hex || '').replace('#', '');
+    const full = raw.length === 3 ? raw.split('').map(c => c + c).join('') : raw;
+    if (!/^[0-9a-fA-F]{6}$/.test(full)) return 0;
+    const [r, g, b] = [0, 2, 4]
+      .map(i => parseInt(full.substr(i, 2), 16) / 255)
+      .map(v => (v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4)));
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+  }
+
+  // Selected-swatch ring: tenant primary, unless the tenant's primary is too
+  // pale to read against the white card — then a neutral dark.
+  function swatchRingColor() {
+    const primary = (config && config.theme && config.theme.primary) || '#1A5E63';
+    return relLuminance(primary) > 0.6 ? '#374151' : primary;
+  }
+
+  // Mirror of lib/generate-core.js pickOutputSize: the loader (and the locked
+  // preview) pre-size to the aspect ratio the server will return, so the
+  // finished render swaps in without any layout shift.
+  // Sized via a measured pixel height, NOT the aspect-ratio property — that
+  // property transfers a min-height into a min-width and blows narrow grid
+  // columns out of the viewport. The floor keeps the lead-gate form from
+  // needing to scroll on phones. Call only while the element is visible.
+  function sizeToPredictedAspect(el) {
+    const w = el.clientWidth;
+    if (!w) return;
+    el.style.height = `${Math.max(Math.round(w / predictedAspect()), 440)}px`;
+  }
+
+  const OUTPUT_RATIOS = [1536 / 1024, 1, 1024 / 1536];
+  function predictedAspect() {
+    const w = Number(state.uploadedWidth);
+    const h = Number(state.uploadedHeight);
+    if (!w || !h) return 1;
+    const src = w / h;
+    return OUTPUT_RATIOS.reduce((best, r) =>
+      Math.abs(Math.log(src / r)) < Math.abs(Math.log(src / best)) ? r : best
+    );
+  }
+
+  // "Focus mode": once a generation starts, the render is the hero — the
+  // controls column collapses into the compact summary strip in the preview
+  // header, and the preview panel takes the full container width.
+  function enterFocusMode() {
+    state.focusMode = true;
+    elements.vizGrid.classList.remove('md:grid-cols-2');
+    elements.controlsPanel.classList.add('hidden');
+    elements.controlsSummary.classList.remove('hidden');
+    elements.controlsSummary.classList.add('flex');
+    // After the first generation the preview stays above the controls on
+    // mobile, so expanding "Change options" reads as an accordion below it.
+    elements.previewPanel.classList.add('order-first', 'md:order-none');
+    updateControlsSummary();
+  }
+
+  function exitFocusMode() {
+    state.focusMode = false;
+    elements.vizGrid.classList.add('md:grid-cols-2');
+    elements.controlsPanel.classList.remove('hidden');
+    elements.controlsSummary.classList.add('hidden');
+    elements.controlsSummary.classList.remove('flex');
+  }
+
+  function updateControlsSummary() {
+    if (state.uploadedImage) elements.summaryThumb.src = state.uploadedImage;
+    elements.summaryColors.innerHTML = state.selectedColors.map(c => `
+      <span class="w-4 h-4 rounded-full border-2 border-white shadow-sm inline-block" style="background-color: ${c.hex}"></span>
+    `).join('');
+    elements.summaryStyle.textContent = state.selectedStyle ? state.selectedStyle.name : '';
+  }
+
+  // Build the loader scene: balloons in the user's selected colors drifting
+  // up through the stage. Deterministic pseudo-random placement (no
+  // Math.random needed) so it looks scattered but renders identically.
+  function buildLoaderScene() {
+    const colors = state.selectedColors.length
+      ? state.selectedColors.map(c => c.hex)
+      : ['#FFD1DC', '#ADD8E6', '#FFFACD'];
+    const BALLOONS = 9;
+    let html = '';
+    for (let i = 0; i < BALLOONS; i++) {
+      const left = (i * 137 + 23) % 92;          // golden-angle spread, 0–92%
+      const size = 26 + ((i * 53) % 40);          // 26–65px
+      const duration = 7 + (i % 5) * 1.7;         // 7–13.8s
+      const delay = -((i * 2.3) % duration);      // negative: field starts full
+      const rmTop = 12 + ((i * 61) % 70);         // reduced-motion resting spot
+      html += `<span class="bv-balloon" style="
+        left: ${left}%;
+        width: ${size}px;
+        height: ${Math.round(size * 1.16)}px;
+        --bv-color: ${colors[i % colors.length]};
+        --bv-top: ${rmTop}%;
+        animation-duration: ${duration}s;
+        animation-delay: ${delay.toFixed(1)}s;
+      "></span>`;
+    }
+    elements.loadingBalloons.innerHTML = html;
+    sizeToPredictedAspect(elements.loadingStage);
   }
 
   // Apply tenant branding to the whole page (theme vars, fonts, logo, copy)
@@ -122,10 +270,12 @@ const BalloonVisualizer = (() => {
     const container = document.getElementById('ai-visualizer-app');
     if (!container) return;
 
+    ensureVisualizerStyles();
+
     container.innerHTML = `
-      <div class="grid md:grid-cols-2 gap-6">
+      <div id="viz-grid" class="grid md:grid-cols-2 gap-6">
         <!-- Left Panel: Controls -->
-        <div class="space-y-4">
+        <div id="controls-panel" class="space-y-4">
           <!-- Step 1: Upload -->
           <div class="bg-white rounded-xl p-4 shadow-sm">
             <div class="flex items-center gap-2 mb-3">
@@ -176,13 +326,34 @@ const BalloonVisualizer = (() => {
         </div>
 
         <!-- Right Panel: Result -->
-        <div class="bg-white rounded-2xl p-4 shadow-sm flex flex-col">
-          <h3 class="font-semibold text-dark mb-3 text-sm">AI Preview</h3>
+        <div id="preview-panel" class="bg-white rounded-2xl p-4 shadow-sm flex flex-col">
+          <div class="flex items-center justify-between gap-3 mb-3">
+            <h3 class="font-semibold text-dark text-sm shrink-0">AI Preview</h3>
+            <!-- Compact controls summary (shown while the render is the hero) -->
+            <div id="controls-summary" class="hidden items-center gap-2 min-w-0">
+              <img id="summary-thumb" class="w-8 h-8 rounded-lg object-cover shrink-0" alt="Your photo">
+              <div id="summary-colors" class="flex -space-x-1.5 shrink-0"></div>
+              <span id="summary-style" class="text-xs text-gray-500 truncate hidden sm:inline"></span>
+              <button id="edit-options-btn" type="button"
+                class="shrink-0 text-xs font-semibold text-teal border border-current/30 rounded-full px-3 py-1.5 hover:bg-teal hover:text-white transition-colors">
+                Change options
+              </button>
+            </div>
+          </div>
 
-          <!-- Loading State -->
-          <div id="loading-state" class="hidden py-20 flex flex-col items-center justify-center">
-            <div class="w-12 h-12 border-4 border-teal border-t-transparent rounded-full animate-spin mb-3"></div>
-            <p id="loading-text" class="text-gray-500 text-sm">Generating your visualization...</p>
+          <!-- Loading State: floating balloons in the user's colors + rotating copy -->
+          <div id="loading-state" class="hidden">
+            <div id="loading-stage" class="relative overflow-hidden rounded-xl w-full" style="background: linear-gradient(180deg, #f7fafa 0%, #e9f0f0 100%);">
+              <div id="loading-balloons" class="absolute inset-0" aria-hidden="true"></div>
+              <div class="absolute inset-0 flex items-center justify-center p-6">
+                <div class="bg-white/75 backdrop-blur-sm rounded-2xl px-6 py-5 shadow-sm w-full max-w-xs text-center">
+                  <p id="loading-text" class="text-sm font-medium text-gray-600 mb-3 bv-fade">Inflating the balloons&hellip;</p>
+                  <div class="h-1.5 bg-black/10 rounded-full overflow-hidden" role="progressbar" aria-label="Generating your visualization">
+                    <div id="loading-bar" class="h-full rounded-full" style="width: 0%; background: var(--gold); transition: width 0.4s ease;"></div>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
 
           <!-- Empty State -->
@@ -198,21 +369,24 @@ const BalloonVisualizer = (() => {
 
           <!-- Result State -->
           <div id="result-state" class="hidden">
-            <div class="relative mb-3 overflow-hidden rounded-xl">
+            <div id="result-media" class="relative mb-3 overflow-hidden rounded-xl">
               <img id="result-image" class="w-full rounded-xl transition-all duration-700">
               <div class="absolute top-2 right-2 bg-white/90 backdrop-blur px-2 py-1 rounded-full text-xs font-bold tracking-wider text-teal">
                 AI GENERATED
               </div>
 
-              <!-- Lead Gate Overlay -->
-              <div id="lead-gate" class="hidden absolute inset-0 bg-white/40 backdrop-blur-[2px] flex items-center justify-center p-4">
-                <form id="lead-form" class="bg-white/95 backdrop-blur rounded-xl shadow-lg p-5 w-full max-w-sm">
-                  <p class="font-semibold text-dark text-sm mb-1">Your design is ready!</p>
-                  <p class="text-xs text-gray-500 mb-4">Tell us where to send your free estimate and we'll reveal it instantly.</p>
-                  <div id="lead-fields" class="space-y-2.5"></div>
-                  <p id="lead-error" class="hidden text-xs text-red-500 mt-2">Please fill in your name, email, and phone.</p>
-                  <button type="submit" class="w-full btn-primary py-2.5 rounded-lg font-semibold text-sm mt-4">Reveal My Design</button>
-                </form>
+              <!-- Lead Gate: centered modal over the fully blurred render -->
+              <div id="lead-gate" class="hidden absolute inset-0 z-10">
+                <div class="absolute inset-0 bg-black/40"></div>
+                <div class="absolute inset-0 overflow-y-auto flex p-4 sm:p-6">
+                  <form id="lead-form" class="m-auto bg-white rounded-2xl shadow-2xl p-6 sm:p-7 w-full max-w-md">
+                    <p class="font-semibold text-dark text-base mb-1">Your design is ready!</p>
+                    <p class="text-xs text-gray-500 mb-4">Tell us where to send your free estimate and we'll reveal it instantly.</p>
+                    <div id="lead-fields" class="space-y-2.5"></div>
+                    <p id="lead-error" class="hidden text-xs text-red-500 mt-2">Please fill in your name, email, and phone.</p>
+                    <button type="submit" class="w-full btn-primary py-2.5 rounded-lg font-semibold text-sm mt-4">Reveal My Design</button>
+                  </form>
+                </div>
               </div>
             </div>
 
@@ -261,6 +435,18 @@ const BalloonVisualizer = (() => {
 
     // Cache DOM elements
     elements = {
+      vizGrid: document.getElementById('viz-grid'),
+      controlsPanel: document.getElementById('controls-panel'),
+      previewPanel: document.getElementById('preview-panel'),
+      controlsSummary: document.getElementById('controls-summary'),
+      summaryThumb: document.getElementById('summary-thumb'),
+      summaryColors: document.getElementById('summary-colors'),
+      summaryStyle: document.getElementById('summary-style'),
+      editOptionsBtn: document.getElementById('edit-options-btn'),
+      loadingStage: document.getElementById('loading-stage'),
+      loadingBalloons: document.getElementById('loading-balloons'),
+      loadingBar: document.getElementById('loading-bar'),
+      resultMedia: document.getElementById('result-media'),
       uploadArea: document.getElementById('upload-area'),
       fileInput: document.getElementById('file-input'),
       uploadPreview: document.getElementById('upload-preview'),
@@ -295,18 +481,25 @@ const BalloonVisualizer = (() => {
     renderLeadFields();
   }
 
-  // Render color selection grid from tenant config
+  // Render color selection grid from tenant config. Pale swatches get a dark
+  // checkmark + a subtle inset edge so selection stays visible on any palette.
   function renderColorGrid() {
-    elements.colorGrid.innerHTML = (config.colors || []).map(color => `
+    elements.colorGrid.innerHTML = (config.colors || []).map(color => {
+      const isLight = relLuminance(color.hex) > 0.5;
+      const check = isLight ? '#1f2937' : '#ffffff';
+      const halo = isLight ? '0 1px 2px rgba(255,255,255,0.8)' : '0 1px 2px rgba(0,0,0,0.5)';
+      const edge = isLight ? 'box-shadow: inset 0 0 0 1px rgba(0,0,0,0.15);' : '';
+      return `
       <button
         class="color-btn w-8 h-8 rounded-full border-2 border-transparent hover:scale-110 transition-transform relative"
-        style="background-color: ${color.hex}"
+        style="background-color: ${color.hex}; ${edge}"
         data-color="${color.name}"
         data-hex="${color.hex}"
         title="${color.name}">
-        <span class="check-mark hidden absolute inset-0 flex items-center justify-center text-white text-sm font-bold" style="text-shadow: 0 1px 2px rgba(0,0,0,0.5)">✓</span>
+        <span class="check-mark hidden absolute inset-0 flex items-center justify-center text-base font-bold" style="color: ${check}; text-shadow: ${halo}">✓</span>
       </button>
-    `).join('');
+    `;
+    }).join('');
   }
 
   // Render style selector from tenant config
@@ -369,6 +562,12 @@ const BalloonVisualizer = (() => {
 
     // Retry
     elements.retryBtn.addEventListener('click', () => showState('empty'));
+
+    // Focus mode: expand the collapsed controls back out
+    elements.editOptionsBtn.addEventListener('click', () => {
+      exitFocusMode();
+      elements.controlsPanel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    });
   }
 
   // File handling
@@ -446,12 +645,14 @@ const BalloonVisualizer = (() => {
     if (isSelected) {
       // Deselect
       state.selectedColors = state.selectedColors.filter(c => c.name !== colorName);
-      btn.classList.remove('ring-2', 'ring-offset-2', 'ring-teal');
+      btn.classList.remove('ring-2', 'ring-offset-2');
+      btn.style.removeProperty('--tw-ring-color');
       checkMark.classList.add('hidden');
     } else if (state.selectedColors.length < 3) {
       // Select
       state.selectedColors.push({ name: colorName, hex: colorHex });
-      btn.classList.add('ring-2', 'ring-offset-2', 'ring-teal');
+      btn.classList.add('ring-2', 'ring-offset-2');
+      btn.style.setProperty('--tw-ring-color', swatchRingColor());
       checkMark.classList.remove('hidden');
     }
 
@@ -511,21 +712,40 @@ const BalloonVisualizer = (() => {
     if (state.isLoading) return;
 
     state.isLoading = true;
-    showState('loading');
+    enterFocusMode();
+    showState('loading'); // before buildLoaderScene: sizing needs a visible stage
+    buildLoaderScene();
     elements.generateBtn.disabled = true;
 
-    // Loading messages
+    // Rotating status copy, personalized with the user's actual selections
+    const colorNames = state.selectedColors.map(c => c.name);
     const loadingMessages = [
-      'Inflating your vision...',
-      'Adding the final touches...',
-      'Tying up the perfect look...',
-      'Getting the party started...'
+      'Inflating the balloons…',
+      colorNames.length ? `Matching ${colorNames.join(', ')}…` : 'Matching your colors…',
+      state.selectedStyle ? `Styling your ${state.selectedStyle.name}…` : 'Styling your design…',
+      'Adding the finishing touches…'
     ];
+    elements.loadingText.textContent = loadingMessages[0];
+    elements.loadingText.style.opacity = '1';
     let msgIndex = 0;
     const loadingInterval = setInterval(() => {
       msgIndex = (msgIndex + 1) % loadingMessages.length;
-      elements.loadingText.textContent = loadingMessages[msgIndex];
-    }, 2000);
+      elements.loadingText.style.opacity = '0';
+      setTimeout(() => {
+        elements.loadingText.textContent = loadingMessages[msgIndex];
+        elements.loadingText.style.opacity = '1';
+      }, 450);
+    }, 7000);
+
+    // Eased "determinate-feeling" progress, capped at 90% until the render
+    // actually returns (renders run ~30–115s; ~63% of the cap at 35s).
+    const startedAt = Date.now();
+    elements.loadingBar.style.width = '0%';
+    const progressInterval = setInterval(() => {
+      const t = (Date.now() - startedAt) / 1000;
+      const pct = 90 * (1 - Math.exp(-t / 35));
+      elements.loadingBar.style.width = `${pct.toFixed(1)}%`;
+    }, 300);
 
     try {
       // The server owns the prompt — send only the selections.
@@ -557,33 +777,41 @@ const BalloonVisualizer = (() => {
       elements.quoteColors.textContent = `Colors: ${colorNames.join(', ')}`;
       elements.quotePrice.textContent = state.priceInfo ? `$${state.priceInfo.price}` : 'Quote on request';
 
+      elements.loadingBar.style.width = '100%';
+
+      showState('result'); // before lock/reveal: locked sizing needs a visible box
       if (config.leadGate && config.leadGate.enabled && !state.isRevealed) {
         lockResult();
       } else {
         revealResult();
       }
-      showState('result');
 
     } catch (error) {
       console.error('Generation error:', error);
       elements.errorMessage.textContent = error.message;
+      exitFocusMode(); // bring the controls back so the user can adjust
       showState('error');
     } finally {
       clearInterval(loadingInterval);
+      clearInterval(progressInterval);
       state.isLoading = false;
       updateGenerateButton();
     }
   }
 
-  // Lead gate: blur the render behind the form
+  // Lead gate: the whole preview blurs edge-to-edge behind a centered modal.
+  // While locked, the media box keeps the loader's predicted aspect ratio and
+  // the blurred render cover-fills it — no strips, no seams, no layout shift.
   function lockResult() {
-    elements.resultImage.classList.add('blur-lg', 'scale-105');
+    sizeToPredictedAspect(elements.resultMedia);
+    elements.resultImage.classList.add('absolute', 'inset-0', 'h-full', 'object-cover', 'blur-xl', 'scale-110');
     elements.leadGate.classList.remove('hidden');
     elements.quotePanel.classList.add('hidden');
   }
 
   function revealResult() {
-    elements.resultImage.classList.remove('blur-lg', 'scale-105');
+    elements.resultMedia.style.removeProperty('height');
+    elements.resultImage.classList.remove('absolute', 'inset-0', 'h-full', 'object-cover', 'blur-xl', 'scale-110');
     elements.leadGate.classList.add('hidden');
     elements.quotePanel.classList.remove('hidden');
   }
@@ -627,22 +855,40 @@ const BalloonVisualizer = (() => {
     }
   }
 
-  // Download image
-  function downloadImage() {
+  // Download image. Data URLs can exceed iOS Safari's tolerance for anchor
+  // downloads — convert to a blob URL first, fall back to the raw data URL.
+  async function downloadImage() {
     if (!state.generatedImage) return;
+
+    const filename = `${config.id || 'balloon'}-visualization-${Date.now()}.png`;
+    let href = state.generatedImage;
+    let blobUrl = null;
+    try {
+      const blob = await (await fetch(state.generatedImage)).blob();
+      blobUrl = URL.createObjectURL(blob);
+      href = blobUrl;
+    } catch (e) {
+      // fetch of a data URL failed (very old browser) — use it directly
+    }
 
     const link = document.createElement('a');
-    link.href = state.generatedImage;
-    link.download = `${config.id || 'balloon'}-visualization-${Date.now()}.png`;
+    link.href = href;
+    link.download = filename;
+    document.body.appendChild(link);
     link.click();
+    link.remove();
+    if (blobUrl) setTimeout(() => URL.revokeObjectURL(blobUrl), 60000);
   }
 
-  // Download quote as PDF
-  async function downloadQuote() {
+  // Download quote as PDF.
+  // The quote renders into a Blob URL opened in a new tab — never
+  // window.open('')+document.write, which returns null under popup blockers
+  // and breaks document lifecycle on iOS Safari. Desktop (fine pointer)
+  // auto-opens the print dialog; touch devices get an explicit
+  // "Print / Save as PDF" button that routes through the share sheet.
+  function downloadQuote() {
     if (!state.generatedImage) return;
 
-    // For now, generate a simple HTML-based printable quote
-    // In production, you might use a library like jsPDF
     const colorNames = state.selectedColors.map(c => c.name).join(', ');
     const price = state.priceInfo ? `$${state.priceInfo.price}` : 'Quote on request';
     const theme = config.theme || {};
@@ -652,8 +898,13 @@ const BalloonVisualizer = (() => {
       <!DOCTYPE html>
       <html>
       <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <title>${config.businessName} - Quote</title>
         <style>
+          .quote-toolbar { position: sticky; top: 0; z-index: 10; text-align: center; padding: 12px; background: ${primary}; margin: -40px -40px 24px; }
+          .quote-toolbar button { background: white; color: ${primary}; border: none; font-size: 15px; font-weight: bold; padding: 10px 28px; border-radius: 999px; cursor: pointer; }
+          @media print { .quote-toolbar { display: none; } }
           body { font-family: 'Segoe UI', Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 40px; color: ${theme.text || '#333'}; }
           .header { text-align: center; margin-bottom: 40px; border-bottom: 2px solid ${primary}; padding-bottom: 20px; }
           .header h1 { color: ${primary}; margin: 0; font-size: 28px; }
@@ -671,6 +922,9 @@ const BalloonVisualizer = (() => {
         </style>
       </head>
       <body>
+        <div class="quote-toolbar">
+          <button onclick="window.print()">Print / Save as PDF</button>
+        </div>
         <div class="header">
           <h1>${config.businessName}</h1>
           <p>${config.tagline || ''}</p>
@@ -703,19 +957,33 @@ const BalloonVisualizer = (() => {
           <p>${(config.contact && config.contact.email) || ''}</p>
           <p>Quote generated on ${new Date().toLocaleDateString()}</p>
         </div>
+        <script>
+          // Auto-print only on precise-pointer devices; on touch devices the
+          // toolbar button drives print/save via the OS share sheet.
+          window.addEventListener('load', function () {
+            if (window.matchMedia && window.matchMedia('(hover: hover) and (pointer: fine)').matches) {
+              setTimeout(function () { window.print(); }, 600);
+            }
+          });
+        <\/script>
       </body>
       </html>
     `;
 
-    // Open in new window for printing/saving
-    const printWindow = window.open('', '_blank');
-    printWindow.document.write(quoteHTML);
-    printWindow.document.close();
-
-    // Trigger print dialog after images load
-    printWindow.onload = () => {
-      setTimeout(() => printWindow.print(), 500);
-    };
+    const blob = new Blob([quoteHTML], { type: 'text/html' });
+    const url = URL.createObjectURL(blob);
+    const win = window.open(url, '_blank');
+    if (!win) {
+      // Popup contexts that block window.open still honor anchor navigation
+      const a = document.createElement('a');
+      a.href = url;
+      a.target = '_blank';
+      a.rel = 'noopener';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+    }
+    setTimeout(() => URL.revokeObjectURL(url), 60000);
   }
 
   // Public API

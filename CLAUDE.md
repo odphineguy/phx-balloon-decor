@@ -75,6 +75,22 @@ width, height) — no prompt text. The lead gate reveals on submit REGARDLESS of
 outcome (ad blockers must not kill the demo moment); the POST happens after the reveal.
 API base is `http://localhost:3001` on localhost, same-origin otherwise.
 
+Visualizer UX (2026-07-18 punch list — see DECISIONS.md for the reasoning):
+- **Focus mode**: Generate collapses the controls column into a summary strip in the
+  preview header and makes the render/loader full container width; "Change options"
+  expands back. Entered at loading start so the render arrives without layout shift.
+- **Loader**: rising balloons in the user's selected colors (CSS injected as
+  `#bv-styles`), rotating status copy with the real style/color names, eased progress
+  capped at 90%. Honors `prefers-reduced-motion`.
+- **Lead gate**: centered modal over the fully blurred render (Option A). Loader and
+  locked media are sized in JS via `sizeToPredictedAspect()` (mirrors the server's
+  `pickOutputSize`) — never with the CSS `aspect-ratio` property (see Gotchas).
+- **Downloads**: quote = Blob-URL HTML in a new tab with a "Print / Save as PDF"
+  button (auto-print only on fine-pointer devices); image = blob-converted anchor
+  download. Never `window.open('')` + `document.write` — it breaks on iOS Safari.
+- **Swatches**: per-swatch checkmark contrast + ring color come from a relative-
+  luminance helper, so any tenant palette stays visible.
+
 **Supabase** — project `qcgqmomauwpulvotxmls` ("March-Madness Project", shared with unrelated
 tables — do not touch `users`/`brackets`/`tournament_results`). `balloon_leads` table per
 `supabase/migrations/20260716000000_balloon_leads.sql` (applied 2026-07-16): RLS enabled with NO
@@ -93,6 +109,10 @@ policies — service role only, no anon access.
 
 ## Gotchas
 
+- CSS `aspect-ratio` transfers min/max constraints across axes: `aspect-ratio: 1` +
+  `min-height: 24rem` imposes a 384px **min-width**, which blows narrow grid columns
+  out of the mobile viewport. That's why the visualizer's loader stage and locked
+  preview are sized with explicit JS-computed pixel heights instead.
 - The static before/after compare slider (`#visualizer`) reveals its overlay via
   `clip-path: inset(...)`, not by resizing the overlay div — resizing breaks `object-fit: cover`
   alignment. Container uses `aspect-ratio: 1/1` + inline `height:auto`.

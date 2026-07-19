@@ -2,6 +2,55 @@
 
 Newest on top. Settled questions — don't relitigate without new information.
 
+## 2026-07-18 — UX punch list (BALLOON_UX_PUNCHLIST_SPEC.md) + footer CTA restyle
+
+All five items are frontend-only (`js/balloon-visualizer.js` + `index.html`); no backend,
+pricing, or lead-contract changes. Choices made where the spec offered options:
+
+- **Item 1 (render too small): "focus mode", not a left rail.** On Generate, the
+  two-column grid drops to one column, the controls panel hides, and a compact summary
+  strip (upload thumb, color dots, style name, "Change options") appears in the preview
+  header. Entered at *loading* start — so the render lands in an already-full-width
+  panel with zero shift. "Change options" restores the two-column form (render stays);
+  after first generation the preview is `order-first` on mobile so expanded controls
+  read as an accordion below the render. Errors auto-exit focus mode.
+- **Item 2: Option A (modal) chosen.** Blur is edge-to-edge (locked image goes
+  absolute + object-cover + blur-xl + scale-110 inside the overflow-hidden media box),
+  black/40 dim, centered white card. Fields and reveal-before-POST behavior unchanged.
+- **Sizing gotcha that shaped Items 1–3:** CSS `aspect-ratio` *transfers* min-height
+  into min-width — `aspect-ratio:1` + `min-height:24rem` forced a 384px min-width that
+  blew the preview panel out of its 334px grid column on phones. Loader stage and
+  locked media are therefore sized by JS (`height = max(width / predictedAspect, 440px)`,
+  measured while visible), with `predictedAspect()` mirroring `pickOutputSize` in
+  `lib/generate-core.js`. Loader and locked result get identical boxes → no layout
+  shift when the render arrives. Do NOT reintroduce `aspect-ratio` on these elements.
+- **Item 3:** rising balloons in the user's selected colors (injected `#bv-styles`
+  CSS, no libraries), deterministic pseudo-random placement, status copy rotating
+  every 7s using the real style/color names, progress `90·(1−e^(−t/35s))` capped at
+  90% until the response lands. `prefers-reduced-motion` → static balloons with an
+  opacity breathe.
+- **Item 4 (mobile Download Quote): root cause diagnosed from code, not device.**
+  Old flow was `window.open('', '_blank')` + `document.write` + auto-`print()` —
+  `window.open('')` returns null under popup blockers, and write+print is unreliable
+  in iOS Safari/in-app browsers. New flow: quote HTML → Blob URL → new tab, with a
+  sticky "Print / Save as PDF" button; auto-print only on `(hover:hover) and
+  (pointer:fine)` devices. Download Image converts the data URL to a blob URL (iOS
+  chokes on multi-MB data-URL anchors). Verified in desktop Chromium + 390px
+  emulation; **on-device iPhone/Android verification still owed** (no iOS simulator
+  runtimes on this Mac) — the spec's acceptance box stays open until Abe tests it.
+- **Item 5:** WCAG relative-luminance helper; swatches lighter than 0.5 get a dark
+  (#1f2937) checkmark with a white halo plus a faint inset edge; ring color is the
+  tenant primary unless its luminance exceeds 0.6 (then neutral #374151), set via
+  `--tw-ring-color` so it works for any tenant palette.
+- **Extra (not on spec): footer CTA card restyle.** Layered radial/linear gradient
+  over `var(--teal)` (color-mix with plain-color fallbacks), floating balloon accents,
+  gold kicker + italic accent word, capsule email form on ≥sm, trust line. Visual-only:
+  the email form still has no submit handler (pre-existing; out of scope).
+- Verified with a stubbed `/api/generate`/`/api/leads` (no OpenAI spend, no test rows
+  or emails) at 1440px and 390px: loader, gate, reveal, quote panel, downloads,
+  change-options, error path. The 8px horizontal scrollWidth overflow on mobile is the
+  pre-existing off-canvas menu (`translate-x-full`), not this work.
+
 ## 2026-07-16 — Balloon SaaS v1 (tenant config, gpt-image-2, lead gate)
 
 Implemented `BALLOON_SAAS_SPEC.md` end-to-end. Divergences from spec, all reality-driven:

@@ -122,6 +122,48 @@
             clip-path: inset(0 50% 0 0);
         }
 
+        /* Footer CTA card — layered gradients + drifting balloon accents.
+           All tones derive from the theme vars so any tenant palette works. */
+        .cta-card {
+            background-color: var(--teal); /* fallback when color-mix is unsupported */
+            background:
+                radial-gradient(600px 320px at 88% -10%, rgba(255,255,255,0.09), transparent 60%),
+                radial-gradient(520px 280px at 0% 115%, rgba(255,255,255,0.07), transparent 60%),
+                linear-gradient(140deg, var(--teal) 0%, color-mix(in srgb, var(--teal) 70%, #04191c) 100%);
+            border: 1px solid rgba(255,255,255,0.14);
+            border-color: color-mix(in srgb, var(--gold) 35%, transparent);
+            box-shadow: 0 30px 60px -25px rgba(0,0,0,0.35);
+        }
+        .cta-accent {
+            color: #E8C766; /* fallback */
+            color: color-mix(in srgb, var(--gold) 55%, white);
+        }
+        .cta-balloon {
+            position: absolute;
+            border-radius: 50% 50% 48% 52% / 58% 58% 42% 42%;
+            background:
+                radial-gradient(circle at 32% 26%, rgba(255,255,255,0.5), transparent 45%),
+                var(--cb, rgba(255,255,255,0.12));
+            animation: ctaFloat 7s ease-in-out infinite;
+        }
+        .cta-balloon::after {
+            content: '';
+            position: absolute;
+            top: 99%;
+            left: 50%;
+            width: 1px;
+            height: 45%;
+            background: rgba(255,255,255,0.25);
+            transform: translateX(-50%);
+        }
+        @keyframes ctaFloat {
+            0%, 100% { transform: translateY(0) rotate(-2deg); }
+            50% { transform: translateY(-16px) rotate(2deg); }
+        }
+        @media (prefers-reduced-motion: reduce) {
+            .cta-balloon { animation: none; }
+        }
+
         .floating {
             animation: floating 3s ease-in-out infinite;
         }
@@ -310,18 +352,26 @@
     <!-- CTA Section -->
     <section id="contact" class="py-24 mt-12">
         <div class="container mx-auto px-6">
-            <div class="bg-teal rounded-3xl p-12 md:p-20 text-center relative overflow-hidden">
-                <div class="absolute top-0 right-0 w-96 h-96 bg-white/5 rounded-full -translate-y-1/2 translate-x-1/2"></div>
-                <div class="absolute bottom-0 left-0 w-64 h-64 bg-white/5 rounded-full translate-y-1/2 -translate-x-1/2"></div>
-                
+            <div class="cta-card rounded-3xl px-6 py-16 md:p-20 text-center relative overflow-hidden">
+                <!-- Drifting balloon accents (decorative) -->
+                <div aria-hidden="true">
+                    <span class="cta-balloon w-14 h-16 top-[14%] left-[7%]" style="--cb: color-mix(in srgb, var(--gold) 65%, white); opacity: 0.4; animation-delay: -1.5s;"></span>
+                    <span class="cta-balloon w-8 h-10 top-[55%] left-[14%] hidden md:block" style="opacity: 0.55; animation-delay: -4s; animation-duration: 9s;"></span>
+                    <span class="cta-balloon w-16 h-[4.5rem] top-[18%] right-[8%]" style="opacity: 0.5; animation-delay: -2.6s; animation-duration: 8s;"></span>
+                    <span class="cta-balloon w-9 h-11 bottom-[16%] right-[16%] hidden md:block" style="--cb: color-mix(in srgb, var(--gold) 65%, white); opacity: 0.3; animation-delay: -6s; animation-duration: 10s;"></span>
+                    <span class="cta-balloon w-6 h-7 bottom-[24%] left-[28%] hidden lg:block" style="opacity: 0.35; animation-delay: -3.2s; animation-duration: 11s;"></span>
+                </div>
+
                 <div class="relative z-10 max-w-2xl mx-auto">
-                    <h2 class="text-4xl md:text-5xl text-white mb-8">Ready to transform your space?</h2>
-                    <p class="text-white/70 text-lg mb-10">Start your journey with a complimentary AI visualization of your next event space.</p>
-                    
-                    <form class="flex flex-col md:flex-row gap-4 max-w-lg mx-auto">
-                        <input type="email" placeholder="Your email address" class="flex-grow px-6 py-4 rounded-full focus:outline-none text-dark">
-                        <button class="bg-gold text-white px-8 py-4 rounded-full font-bold hover:bg-white hover:text-teal transition-all">Get Started</button>
+                    <span class="cta-accent font-semibold tracking-[0.2em] uppercase text-xs mb-5 block">Free AI Preview</span>
+                    <h2 class="text-4xl md:text-6xl text-white mb-6">Ready to <span class="italic cta-accent">transform</span> your space?</h2>
+                    <p class="text-white/75 text-lg mb-10 max-w-xl mx-auto">Start your journey with a complimentary AI visualization of your next event space.</p>
+
+                    <form class="flex flex-col sm:flex-row gap-3 sm:gap-0 max-w-lg mx-auto sm:bg-white sm:rounded-full sm:p-2 sm:shadow-2xl">
+                        <input type="email" placeholder="Your email address" class="flex-grow px-6 py-4 rounded-full focus:outline-none text-dark bg-white sm:bg-transparent">
+                        <button class="bg-gold text-white px-8 py-4 rounded-full font-bold hover:opacity-90 transition-all whitespace-nowrap">Get Started</button>
                     </form>
+                    <p class="text-white/50 text-[11px] mt-6 tracking-[0.15em] uppercase">Complimentary visualization &middot; No obligation &middot; Ready in about a minute</p>
                 </div>
             </div>
         </div>
