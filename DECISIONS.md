@@ -2,6 +2,17 @@
 
 Newest on top. Settled questions — don't relitigate without new information.
 
+## 2026-07-18 — Punch-list follow-ups from Abe's on-device iPhone test (14e44f8)
+
+Abe verified everything on his iPhone, including Download Quote — the spec's on-device
+acceptance box is now MET. Two issues surfaced and were fixed the same day:
+- **Portrait renders split across PDF pages.** Print CSS now caps the quote image at
+  6.8in with `break-inside: avoid` on the image container (and details/footer), so the
+  render always lands whole on page 1. Verified by printing the quote tab to PDF with a
+  1024×1536 stub render.
+- **Stranded after reveal.** A "Create Another Design" button under the quote downloads
+  exits focus mode and scrolls back to the controls, keeping the user's selections.
+
 ## 2026-07-18 — UX punch list (BALLOON_UX_PUNCHLIST_SPEC.md) + footer CTA restyle
 
 All five items are frontend-only (`js/balloon-visualizer.js` + `index.html`); no backend,
