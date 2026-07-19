@@ -415,6 +415,12 @@ const BalloonVisualizer = (() => {
                   Download Quote
                 </button>
               </div>
+              <button id="start-over-btn" type="button" class="w-full mt-2 py-2 rounded-lg text-xs font-semibold text-gray-500 hover:text-teal transition-colors flex items-center justify-center gap-1.5">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+                Create Another Design
+              </button>
             </div>
           </div>
 
@@ -471,6 +477,7 @@ const BalloonVisualizer = (() => {
       quoteStyleName: document.getElementById('quote-style-name'),
       quoteColors: document.getElementById('quote-colors'),
       quotePrice: document.getElementById('quote-price'),
+      startOverBtn: document.getElementById('start-over-btn'),
       downloadImageBtn: document.getElementById('download-image-btn'),
       downloadQuoteBtn: document.getElementById('download-quote-btn'),
       retryBtn: document.getElementById('retry-btn')
@@ -567,6 +574,13 @@ const BalloonVisualizer = (() => {
     elements.editOptionsBtn.addEventListener('click', () => {
       exitFocusMode();
       elements.controlsPanel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    });
+
+    // "Create Another Design": same escape hatch, discoverable at the end of
+    // the result flow — selections are kept so the user can tweak and rerun.
+    elements.startOverBtn.addEventListener('click', () => {
+      exitFocusMode();
+      elements.controlsPanel.scrollIntoView({ behavior: 'smooth', block: 'start' });
     });
   }
 
@@ -904,7 +918,14 @@ const BalloonVisualizer = (() => {
         <style>
           .quote-toolbar { position: sticky; top: 0; z-index: 10; text-align: center; padding: 12px; background: ${primary}; margin: -40px -40px 24px; }
           .quote-toolbar button { background: white; color: ${primary}; border: none; font-size: 15px; font-weight: bold; padding: 10px 28px; border-radius: 999px; cursor: pointer; }
-          @media print { .quote-toolbar { display: none; } }
+          @media print {
+            .quote-toolbar { display: none; }
+            /* Keep the render on one page: cap its height to what fits under
+               the header and never let a page break slice through it. */
+            .image-container { break-inside: avoid; page-break-inside: avoid; margin: 16px 0; }
+            .image-container img { max-height: 6.8in; width: auto; max-width: 100%; box-shadow: none; }
+            .details, .footer { break-inside: avoid; page-break-inside: avoid; }
+          }
           body { font-family: 'Segoe UI', Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 40px; color: ${theme.text || '#333'}; }
           .header { text-align: center; margin-bottom: 40px; border-bottom: 2px solid ${primary}; padding-bottom: 20px; }
           .header h1 { color: ${primary}; margin: 0; font-size: 28px; }
